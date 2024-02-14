@@ -43,6 +43,7 @@ def main():
     detalles_por_id = {}
     errores = [['IDDTE', 'ERROR', 'FECHA']]
 
+    # Procesamiento de todas las hojas
     for hoja_nombre in hojas_a_procesar:
         hoja = hojas.get(hoja_nombre)
         if hoja is None:
@@ -86,11 +87,11 @@ def main():
                         if pd.isna(v):
                             record[k] = None
 
-        nombre_json = generar_nombre_aleatorio(10) + '.json'  # Generar un nombre aleatorio para el archivo JSON
-        detalles_por_id = {key: {inner_key: inner_value[0] if isinstance(inner_value, list) and len(inner_value) == 1 else inner_value for inner_key, inner_value in value.items()} for key, value in detalles_por_id.items()}
-        json_data = json.dumps(detalles_por_id, default=lambda x: x if x is not pd.NA else None)
-        with open(nombre_json, "w") as json_file:
-            json_file.write(json_data)
+    # Generar un único archivo JSON al final del procesamiento
+    nombre_json = generar_nombre_aleatorio(10) + '.json'
+    json_data = json.dumps(detalles_por_id, default=lambda x: x if x is not pd.NA else None)
+    with open(nombre_json, "w") as json_file:
+        json_file.write(json_data)
 
     ahora = datetime.now()
     fecha_hora = ahora.strftime("%Y%m%d%H%M%S")
