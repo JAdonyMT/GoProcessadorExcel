@@ -41,7 +41,9 @@ def main():
 
 
     detalles_por_id = {}
-    errores = [['IDDTE', 'ERROR', 'FECHA']]
+    message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
+    
+    
 
     # Procesamiento de todas las hojas
     for hoja_nombre in hojas_a_procesar:
@@ -67,12 +69,17 @@ def main():
                     if hoja_nombre not in detalles_por_id[idte]:
                         detalles_por_id[idte][hoja_nombre] = []
                     detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['Iddte']).to_dict())
+            
             except Exception as e:
                 error_line = sys.exc_info()[2].tb_lineno
                 print(f"Hubo un error: {e}, en la linea: {error_line}")
                 ahora = datetime.now()
                 fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
-                errores.append([hoja.iloc[index]['Iddte'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora])
+                message.append([hoja.iloc[index]['Iddte'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora, "Error"])
+                ##del detalles_por_id[idte] ##eliminar estructura json en caso de fallar en algun dato
+
+    for idte in detalles_por_id:
+        message.append([idte, '', '', 'SUCCESS'])
 
     # Convertir NaN a None para representarlos como null en el JSON
     for idte, detalle in detalles_por_id.items():
@@ -95,9 +102,9 @@ def main():
 
     ahora = datetime.now()
     fecha_hora = ahora.strftime("%Y%m%d%H%M%S")
-    with open('errores' + fecha_hora + '.csv', mode='a', newline='') as file:
+    with open('messages' + fecha_hora + '.csv', mode='a', newline='') as file:
         writer = csv.writer(file)
-        for e in errores:
+        for e in message:
             writer.writerow(e)
 
     elapsed_time = time.time() - start_time
