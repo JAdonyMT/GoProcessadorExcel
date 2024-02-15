@@ -68,15 +68,21 @@ def main():
                 else:
                     if hoja_nombre not in detalles_por_id[idte]:
                         detalles_por_id[idte][hoja_nombre] = []
+
                     detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['Iddte']).to_dict())
-            
+
             except Exception as e:
                 error_line = sys.exc_info()[2].tb_lineno
                 print(f"Hubo un error: {e}, en la linea: {error_line}")
                 ahora = datetime.now()
                 fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
                 message.append([hoja.iloc[index]['Iddte'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora, "Error"])
-                ##del detalles_por_id[idte] ##eliminar estructura json en caso de fallar en algun dato
+
+    # Convertir la hoja en objeto si tiene solo una fila asociada
+    for idte, detalle in detalles_por_id.items():
+        for hoja_nombre, data in detalle.items():
+            if isinstance(data, list) and len(data) == 1:
+                detalles_por_id[idte][hoja_nombre] = data[0]
 
     for idte in detalles_por_id:
         message.append([idte, '', '', 'SUCCESS'])
