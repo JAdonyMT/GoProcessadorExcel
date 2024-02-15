@@ -26,6 +26,47 @@ def get_memory_usage():
     mem_info = proc.memory_info()
     return mem_info.rss / (1024 *  1024)
 
+fc_map = {
+    "dte":{
+        "CodigoGeneracionContingencia": None,
+        "NumeroIntentos": 0,
+        "VentaTercero": False,
+        "NitTercero": None,
+        "NombreTercero": None
+    },
+    "Identificacion":{
+        "TipoDte": "01"
+    },
+    "Receptor":{
+        "Nrc": None
+    },
+    # "Documentos Relacionados":{
+        
+    # },
+    # "Otros Documentos Relacionados":{
+        
+    # },
+    "Detalles":{
+        "Descuento": 0,
+        "Codigo": None,
+        "CodGenDocRelacionado": None,
+        "CodigoTributo": None
+    },
+    "Resumen":{
+        "DescuentoNoSujeto": 0,
+        "DescuentoGravado": 0,
+        "RetencionRenta": False,
+        "DescuentoExcento": 0
+    },
+    "Apendices":{
+        "Campo": None,
+        "Etiqueta": None,
+        "Valor": None
+    }
+}
+
+
+
 def main():
     before_memory_usage = get_memory_usage()
     start_cpu_usage = psutil.cpu_percent(interval=1)
