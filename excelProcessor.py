@@ -128,8 +128,12 @@ def main():
     for idte in detalles_por_id:
         message.append([idte, '', '', 'SUCCESS'])
 
+    # Convertir las claves numpy.int64 a str
+    detalles_por_id_str_keys = {str(key): value for key, value in detalles_por_id.items()}
+
+
     # Convertir NaN a None para representarlos como null en el JSON
-    for idte, detalle in detalles_por_id.items():
+    for idte, detalle in detalles_por_id_str_keys.items():
         for key, value in detalle.items():
             if isinstance(value, dict):
                 for k, v in value.items():
@@ -143,7 +147,7 @@ def main():
 
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = generar_nombre_aleatorio(10) + '.json'
-    json_data = json.dumps(detalles_por_id, default=lambda x: x if x is not pd.NA else None)
+    json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None)
     with open(nombre_json, "w") as json_file:
         json_file.write(json_data)
 
