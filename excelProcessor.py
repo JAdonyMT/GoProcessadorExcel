@@ -65,21 +65,91 @@ fc_map = {
     }
 }
 
+ccf_map ={
+    "dte":{
+        "CodigoGeneracionContingencia": None,
+        "NumeroIntentos": 0,
+        "VentaTercero": False,
+        "NitTercero": None,
+        "NombreTercero": None
+    },
+    "Identificacion":{
+        "TipoDte": "03"
+    },
+    "Documentos Relacionados":{
+        "TipoDte":	None,
+        "CodigoTipoGeneracion":	None,
+        "FechaEmision":	None,
+        "CodigoGeneracion": None
+    },
+    "Resumen":{
+        "DescuentoNoSujeto": 0,
+        "DescuentoGravado":	0,
+        "DescuentoExento":	0,
+        "RetencionRenta": False
+    },
+    "Apendices":[]
+}
 
+fex_map ={
+    "dte":{
+        "CodigoGeneracionContingencia": None,
+        "NumeroIntentos": 0,
+        "VentaTercero": False,
+        "NitTercero": None,
+        "NombreTercero": None
+    },
+    "Identificacion":{
+        "TipoDte": "11"
+    },
+    "Resumen": {
+        "Seguro": 0,
+        "Flete": 0,
+        "CodigoIncoterm": "05",
+        "DescripcionIncoterm": "DAP-Entrega en el lugar",
+        "Observaciones": None
+    },
+    "OtrosDocumentosAsociados":{
+        "CodigoDocAsociado": 4,
+        "Descripcion": "Otros",
+        "Detalle": "Otros",
+        "Placa": "123456789",
+        "ModoTransporte": 1,
+        "NumeroConductor": "123456",
+        "NombreConductor": "Conductor designado"
+    },
+    "Apendices": []
+}
+
+nc_map ={
+    "dte":{
+            "CodigoGeneracionContingencia": None,
+            "NumeroIntentos": 0,
+            "VentaTercero": False,
+            "NitTercero": None,
+            "NombreTercero": None
+        },
+        "Identificacion":{
+            "TipoDte": "05"
+        },
+        "Resumen":{
+        "DescuentoNoSujeto": 0,
+        "DescuentoGravado":	0,
+        "DescuentoExento":	0,
+        "RetencionRenta": False
+    },
+    "Apendices":[]
+}
 
 def main():
     before_memory_usage = get_memory_usage()
     start_cpu_usage = psutil.cpu_percent(interval=1)
     start_time = time.time()
 
-    # hojas_a_procesar = ["dte", "Identificacion", "Receptor", 
-    #                     "Documentos Relacionados", "Extension", 
-    #                     "Resumen", "Detalles", "Apendices"]
-
     archivo_excel = sys.argv[1]
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
-
+    map_selected = ccf_map
 
     detalles_por_id = {}
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
@@ -145,6 +215,26 @@ def main():
                         if pd.isna(v):
                             record[k] = None
 
+   
+
+     # Agregar datos del objeto "dte" directamente en la raíz
+    for idte, detalle in detalles_por_id_str_keys.items():
+        if "dte" in map_selected:
+            dte_data = map_selected["dte"]
+            for key, value in dte_data.items():
+                if key not in detalle:
+                    detalles_por_id_str_keys[idte][key] = value
+
+    # Integrate fc_map into detalles_por_id
+    for idte, detalle in detalles_por_id_str_keys.items():
+        for hoja_nombre, datos_fijos in map_selected.items():
+            if hoja_nombre != "dte":
+                if idte not in detalles_por_id_str_keys:
+                    detalles_por_id_str_keys[idte] = {}
+                if hoja_nombre not in detalles_por_id_str_keys[idte]:
+                    detalles_por_id_str_keys[idte][hoja_nombre] = {}
+                detalles_por_id_str_keys[idte][hoja_nombre].update(datos_fijos)
+    
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = generar_nombre_aleatorio(10) + '.json'
     json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None)
