@@ -10,10 +10,6 @@ import string
 from datetime import datetime
 import csv
 
-def correct_names(s): 
-    translator = str.maketrans("áéíóúÁÉÍÓÚñÑ", "aeiouAEIOUnN")
-    return s.translate(translator).lower().capitalize()
-
 def generar_nombre_aleatorio(longitud):
     ahora = datetime.now()
     caracteres = string.ascii_letters + string.digits
@@ -50,10 +46,10 @@ fc_map = {
         "DescuentoNoSujeto": 0,
         "DescuentoGravado": 0,
         "RetencionRenta": False,
-        "DescuentoExcento": 0
+        "DescuentoExento": 0
     },
     "DocumentosRelacionados":[],
-    "OtrosDocumentosAsociados":[],
+    "OtrosDocumentosRelacionados":[],
     "Apendices":[]
 }
 
@@ -95,36 +91,28 @@ fex_map ={
         "TipoDte": "11"
     },
     "Resumen": {
-        "Seguro": 0,
-        "Flete": 0,
-        "CodigoIncoterm": "05",
-        "DescripcionIncoterm": "DAP-Entrega en el lugar",
+        "Seguro": 0.0,
+        "Flete": 0.0,
+        "CodigoIncoterm": None,
+        "DescripcionIncoterm": None,
         "Observaciones": None
     },
-    "OtrosDocumentosAsociados":{
-        "CodigoDocAsociado": 4,
-        "Descripcion": "Otros",
-        "Detalle": "Otros",
-        "Placa": "123456789",
-        "ModoTransporte": 1,
-        "NumeroConductor": "123456",
-        "NombreConductor": "Conductor designado"
-    },
+    "OtrosDocumentosRelacionados":[],
     "Apendices": []
 }
 
 nc_map ={
     "dte":{
-            "CodigoGeneracionContingencia": None,
-            "NumeroIntentos": 0,
-            "VentaTercero": False,
-            "NitTercero": None,
-            "NombreTercero": None
-        },
-        "Identificacion":{
-            "TipoDte": "05"
-        },
-        "Resumen":{
+        "CodigoGeneracionContingencia": None,
+        "NumeroIntentos": 0,
+        "VentaTercero": False,
+        "NitTercero": None,
+        "NombreTercero": None
+    },
+    "Identificacion":{
+        "TipoDte": "05"
+    },
+    "Resumen":{
         "DescuentoNoSujeto": 0,
         "DescuentoGravado":	0,
         "DescuentoExento":	0,
@@ -133,7 +121,7 @@ nc_map ={
     "Apendices":[]
 }
 
-fc_type_map = {
+type_map = {
     "dte": {
         "CodigoGeneracionContingencia": str,
         "NumeroIntentos": int,
@@ -160,6 +148,10 @@ fc_type_map = {
         "Telefono": str,
         "Nit": str,
         "Nombres": str,
+        "CodigoTipoPersona": int,
+        "DireccionComplemento": str,
+        "CodigoPais": str,
+        "NombrePais": str,
     },
     "Detalles": {
         "TipoMonto": int,
@@ -182,6 +174,12 @@ fc_type_map = {
         "DescuentoExento":	float,
         "RetencionRenta": bool,
         "CodigoRetencionIva": str,
+        "PercepcionIva": bool,
+        "Seguro": float,
+        "Flete": float,
+        "CodigoIncoterm": str,
+        "DescripcionIncoterm": str,
+        "Observaciones": str
     },
     "Extension": {
         "NombreEntrega": str,
@@ -191,10 +189,59 @@ fc_type_map = {
         "Observaciones": str,
         "PlacaVehiculo": str
     },
-    # "DocumentosRelacionados": [],
-    # "OtrosDocumentosAsociados": [],
+    "DocumentosRelacionados": {
+        "TipoDte": str,
+        "CodigoGeneracion": str,
+        "CodigoTipoGeneracion": int,
+        "FechaEmision": str
+    }
+    # "OtrosDocumentosRelacionados": [],
     # "Apendices": []
 }
+
+map_columns ={
+    "dte": {
+        "CodigoCondicionOperacion": "CodigoCondicionOperacion",
+    },
+    "Identificacion": {
+        "CodigoEstablecimientoMH": "CodigoEstablecimientoMH",
+    },
+    "Receptor": {
+        "TipoDocumentoIdentificacion": "TipoDocumentoIdentificacion",
+        "NumeroDocumentoIdentificacion": "NumeroDocumentoIdentificacion",
+        "CodigoDepartamento": "CodigoDepartamento",
+        "CodigoMunicipio": "CodigoMunicipio",
+        "CodigoActividadEconomica": "CodigoActividadEconomica",
+        "DescripcionActividadEconomica": "DescripcionActividadEconomica",
+    },
+    "Detalles": {
+        "TipoMonto": "TipoMonto",
+        "CodigoTipoItem": "CodigoTipoItem",
+        "CodGenDocRelacionado": "CodGenDocRelacionado",
+        "CodigoTributo": "CodigoTributo",
+        "CodigoUnidadMedida": "CodigoUnidadMedida",
+        "PrecioUnitario": "PrecioUnitario",
+        "IvaItem": "IvaItem",
+    },
+    "Resumen": {
+        "CodigoRetencionIva": "CodigoRetencionIva",
+    },
+    "Extension": {
+        "NombreEntrega": "NombreEntrega",
+        "DocumentoEntrega": "DocumentoEntrega",
+        "NombreRecibe": "NombreRecibe",
+        "DocumentoRecibe": "DocumentoRecibe",
+        "Observaciones": "Observaciones",
+        "PlacaVehiculo": "PlacaVehiculo"
+    },
+    "DocumentosRelacionados": {
+        "TipoDte": "TipoDte",
+        "CodigoGeneracion": "CodigoGeneracion",
+        "CodigoTipoGeneracion": "CodigoTipoGeneracion",
+        "FechaEmision": "FechaEmision"
+    }
+}
+
 
 
 def main():
@@ -206,7 +253,9 @@ def main():
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
-    map_selected = ccf_map
+    map_selected = fex_map
+    map_datatype_selected = type_map
+    map_columns_selected = map_columns
 
     detalles_por_id = {}
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
@@ -220,31 +269,31 @@ def main():
             print(f"La hoja '{hoja_nombre}' no existe en el archivo Excel.")
             continue
 
-        hoja = hoja.rename(columns=correct_names)
+        hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
 
         for index, row in hoja.iterrows():
             try:
-                idte = row['Iddte']
+                idte = row['IDDTE']
                 detalle = detalles_por_id.get(idte, {})
                 if not detalle:
                     detalles_por_id[idte] = {}
 
                 if hoja_nombre == hojas_a_procesar[0]:  # Procesar la primera hoja
                     for col, val in row.items():
-                        if col != 'Iddte':
+                        if col != 'IDDTE':
                             detalles_por_id[idte][col] = val if not pd.isna(val) else None
                 else:
                     if hoja_nombre not in detalles_por_id[idte]:
                         detalles_por_id[idte][hoja_nombre] = []
 
-                    detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['Iddte']).to_dict())
+                    detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
 
             except Exception as e:
                 error_line = sys.exc_info()[2].tb_lineno
                 print(f"Hubo un error: {e}, en la linea: {error_line}")
                 ahora = datetime.now()
                 fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
-                message.append([hoja.iloc[index]['Iddte'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora, "Error"])
+                message.append([hoja.iloc[index]['IDDTE'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora, "Error"])
 
     # Integrar fc_map en detalles_por_id
     for idte, detalle in detalles_por_id.items():
@@ -300,6 +349,22 @@ def main():
             for key, value in dte_data.items():
                 if key not in detalle:
                     detalles_por_id_str_keys[idte][key] = value
+
+    # Convertir tipos de datos según el mapa map_datatype_selected
+    for idte, detalle in detalles_por_id_str_keys.items():
+        for hoja_nombre, data in detalle.items():
+            if hoja_nombre in map_datatype_selected:
+                datatype_map = map_datatype_selected[hoja_nombre]
+                for key, datatype in datatype_map.items():
+                    if isinstance(data, list):
+                        for record in data:
+                            if key in record:
+                                if datatype == str and isinstance(record[key], (int, float)):
+                                    record[key] = str(record[key])
+                    else:
+                        if key in data:
+                            if datatype == str and isinstance(data[key], (int, float)):
+                                data[key] = str(data[key])
 
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = generar_nombre_aleatorio(10) + '.json'
