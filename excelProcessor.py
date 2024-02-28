@@ -206,7 +206,7 @@ def main():
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
-    map_selected = fc_map
+    map_selected = ccf_map
 
     detalles_por_id = {}
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
@@ -267,7 +267,10 @@ def main():
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
         for hoja_nombre, data in detalle.items():
-            if isinstance(data, list) and len(data) == 1:
+            if hoja_nombre == "Detalles":  # Asegurar que "Detalles" siempre sea una lista
+                if not isinstance(data, list):
+                    detalles_por_id[idte][hoja_nombre] = [data]
+            elif isinstance(data, list) and len(data) == 1:  # Convertir a lista si solo hay un objeto
                 detalles_por_id[idte][hoja_nombre] = data[0]
 
     for idte in detalles_por_id:
