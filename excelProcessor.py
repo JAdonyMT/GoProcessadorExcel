@@ -40,12 +40,6 @@ fc_map = {
     "Receptor":{
         "Nrc": None
     },
-    # "Documentos Relacionados":{
-        
-    # },
-    # "Otros Documentos Relacionados":{
-        
-    # },
     "Detalles":{
         "Descuento": 0,
         "Codigo": None,
@@ -58,11 +52,9 @@ fc_map = {
         "RetencionRenta": False,
         "DescuentoExcento": 0
     },
-    "Apendices":{
-        "Campo": None,
-        "Etiqueta": None,
-        "Valor": None
-    }
+    "DocumentosRelacionados":[],
+    "OtrosDocumentosAsociados":[],
+    "Apendices":[]
 }
 
 ccf_map ={
@@ -141,6 +133,70 @@ nc_map ={
     "Apendices":[]
 }
 
+fc_type_map = {
+    "dte": {
+        "CodigoGeneracionContingencia": str,
+        "NumeroIntentos": int,
+        "VentaTercero": bool,
+        "NitTercero": str,
+        "NombreTercero": str,
+        "CodigoCondicionOperacion": str,
+    },
+    "Identificacion": {
+        "TipoDte": str,
+        "CodigoEstablecimientoMH": str,
+        "Moneda": str
+    },
+    "Receptor": {
+        "TipoDocumentoIdentificacion": str,
+        "NumeroDocumentoIdentificacion": str,
+        "CodigoDepartamento": str,
+        "CodigoMunicipio": str,
+        "Direccion": str,    
+        "Nrc": str,
+        "CodigoActividadEconomica": str,
+        "DescripcionActividadEconomica": str,
+        "Correo": str,
+        "Telefono": str,
+        "Nit": str,
+        "Nombres": str,
+    },
+    "Detalles": {
+        "TipoMonto": int,
+        "CodigoTipoItem": int,
+        "Cantidad": float,
+        "Codigo": str,
+        "CodGenDocRelacionado": str,
+        "CodigoTributo": str,
+        "CodigoUnidadMedida": str,
+        "Descripcion": str,
+        "Tributos": [],
+        "PrecioUnitario": float,
+        "IvaItem": float,
+        "Descuento": float,
+        "Subtotal": float,
+    },
+    "Resumen": {
+        "DescuentoNoSujeto": float,
+        "DescuentoGravado":	float,
+        "DescuentoExento":	float,
+        "RetencionRenta": bool,
+        "CodigoRetencionIva": str,
+    },
+    "Extension": {
+        "NombreEntrega": str,
+        "DocumentoEntrega": str,
+        "NombreRecibe": str,
+        "DocumentoRecibe": str,
+        "Observaciones": str,
+        "PlacaVehiculo": str
+    },
+    # "DocumentosRelacionados": [],
+    # "OtrosDocumentosAsociados": [],
+    # "Apendices": []
+}
+
+
 def main():
     before_memory_usage = get_memory_usage()
     start_cpu_usage = psutil.cpu_percent(interval=1)
@@ -149,7 +205,8 @@ def main():
     archivo_excel = sys.argv[1]
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
-    map_selected = ccf_map
+
+    map_selected = fc_map
 
     detalles_por_id = {}
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
@@ -189,6 +246,24 @@ def main():
                 fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
                 message.append([hoja.iloc[index]['Iddte'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora, "Error"])
 
+    # Integrar fc_map en detalles_por_id
+    for idte, detalle in detalles_por_id.items():
+        for hoja_nombre, datos_fijos in map_selected.items():
+            if hoja_nombre != "dte":
+                if idte not in detalles_por_id:
+                    detalles_por_id[idte] = {}
+                if hoja_nombre not in detalles_por_id[idte]:
+                    detalles_por_id[idte][hoja_nombre] = []  # Asegurar que "Detalles" sea una lista vacía si no hay datos
+                if hoja_nombre == "Apendices":
+                    detalles_por_id[idte][hoja_nombre] = []  # Inicializar "Apendices" como una lista vacía
+                # Actualizar los datos fijos en cada objeto de la lista correspondiente
+                if isinstance(datos_fijos, dict):
+                    for item in detalles_por_id[idte][hoja_nombre]:
+                        item.update(datos_fijos)
+                elif isinstance(datos_fijos, list):
+                    for item in detalles_por_id[idte][hoja_nombre]:
+                        item.update(datos_fijos[0])  
+
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
         for hoja_nombre, data in detalle.items():
@@ -215,9 +290,7 @@ def main():
                         if pd.isna(v):
                             record[k] = None
 
-   
-
-     # Agregar datos del objeto "dte" directamente en la raíz
+    # Agregar datos del objeto "dte" directamente en la raíz
     for idte, detalle in detalles_por_id_str_keys.items():
         if "dte" in map_selected:
             dte_data = map_selected["dte"]
@@ -225,16 +298,6 @@ def main():
                 if key not in detalle:
                     detalles_por_id_str_keys[idte][key] = value
 
-    # Integrate fc_map into detalles_por_id
-    for idte, detalle in detalles_por_id_str_keys.items():
-        for hoja_nombre, datos_fijos in map_selected.items():
-            if hoja_nombre != "dte":
-                if idte not in detalles_por_id_str_keys:
-                    detalles_por_id_str_keys[idte] = {}
-                if hoja_nombre not in detalles_por_id_str_keys[idte]:
-                    detalles_por_id_str_keys[idte][hoja_nombre] = {}
-                detalles_por_id_str_keys[idte][hoja_nombre].update(datos_fijos)
-    
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = generar_nombre_aleatorio(10) + '.json'
     json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None)
