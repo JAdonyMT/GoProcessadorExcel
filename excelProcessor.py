@@ -64,7 +64,7 @@ ccf_map ={
     "Identificacion":{
         "TipoDte": "03"
     },
-    "Documentos Relacionados":{
+    "DocumentosRelacionados":{
         "TipoDte":	None,
         "CodigoTipoGeneracion":	None,
         "FechaEmision":	None,
@@ -253,7 +253,7 @@ def main():
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
-    map_selected = fex_map
+    map_selected = ccf_map
     map_datatype_selected = type_map
     map_columns_selected = map_columns
 
@@ -301,18 +301,19 @@ def main():
             if hoja_nombre != "dte":
                 if idte not in detalles_por_id:
                     detalles_por_id[idte] = {}
-                if hoja_nombre not in detalles_por_id[idte]:
-                    detalles_por_id[idte][hoja_nombre] = []  # Asegurar que "Detalles" sea una lista vacía si no hay datos
-                if hoja_nombre == "Apendices":
-                    detalles_por_id[idte][hoja_nombre] = []  # Inicializar "Apendices" como una lista vacía
-                # Actualizar los datos fijos en cada objeto de la lista correspondiente
-                if isinstance(datos_fijos, dict):
-                    for item in detalles_por_id[idte][hoja_nombre]:
-                        item.update(datos_fijos)
-                elif isinstance(datos_fijos, list):
-                    for item in detalles_por_id[idte][hoja_nombre]:
-                        item.update(datos_fijos[0])  
 
+                if hoja_nombre not in detalles_por_id[idte]:
+                    if isinstance(datos_fijos, dict):
+                        detalles_por_id[idte][hoja_nombre] = [datos_fijos.copy()]  # Añadir datos fijos como lista
+                    elif isinstance(datos_fijos, list):
+                        detalles_por_id[idte][hoja_nombre] = [fijo.copy() for fijo in datos_fijos]  # Añadir datos fijos como lista
+                else:
+                    if isinstance(datos_fijos, dict):
+                        for item in detalles_por_id[idte][hoja_nombre]:
+                            item.update(datos_fijos.copy())
+                    elif isinstance(datos_fijos, list):
+                        for fijo in datos_fijos:
+                            detalles_por_id[idte][hoja_nombre].append(fijo.copy())
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
         for hoja_nombre, data in detalle.items():
