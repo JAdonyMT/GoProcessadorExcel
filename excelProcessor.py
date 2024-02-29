@@ -64,18 +64,14 @@ ccf_map ={
     "Identificacion":{
         "TipoDte": "03"
     },
-    "DocumentosRelacionados":{
-        "TipoDte":	None,
-        "CodigoTipoGeneracion":	None,
-        "FechaEmision":	None,
-        "CodigoGeneracion": None
-    },
     "Resumen":{
         "DescuentoNoSujeto": 0,
         "DescuentoGravado":	0,
         "DescuentoExento":	0,
         "RetencionRenta": False
     },
+    "DocumentosRelacionados":[],
+    "OtrosDocumentosRelacionados":[],
     "Apendices":[]
 }
 
@@ -162,7 +158,7 @@ type_map = {
         "CodigoTributo": str,
         "CodigoUnidadMedida": str,
         "Descripcion": str,
-        "Tributos": [],
+        "Tributos": str,
         "PrecioUnitario": float,
         "IvaItem": float,
         "Descuento": float,
@@ -253,7 +249,8 @@ def main():
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
-    map_selected = ccf_map
+
+    map_selected = fc_map
     map_datatype_selected = type_map
     map_columns_selected = map_columns
 
@@ -285,6 +282,13 @@ def main():
                 else:
                     if hoja_nombre not in detalles_por_id[idte]:
                         detalles_por_id[idte][hoja_nombre] = []
+                        
+                    # Procesar la columna "Tributos" específicamente
+                    if "Tributos" in row.index:
+                        tributos_value = row["Tributos"]
+                        # Convertir el valor de "Tributos" a una lista con un único elemento
+                        tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
+                        row["Tributos"] = tributos_list     
 
                     detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
 
@@ -314,10 +318,12 @@ def main():
                     elif isinstance(datos_fijos, list):
                         for fijo in datos_fijos:
                             detalles_por_id[idte][hoja_nombre].append(fijo.copy())
+                            
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
         for hoja_nombre, data in detalle.items():
-            if hoja_nombre == "Detalles":  # Asegurar que "Detalles" siempre sea una lista
+            if hoja_nombre in ["Detalles", "DocumentosRelacionados"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
+                # Asegurar que la hoja siempre sea una lista
                 if not isinstance(data, list):
                     detalles_por_id[idte][hoja_nombre] = [data]
             elif isinstance(data, list) and len(data) == 1:  # Convertir a lista si solo hay un objeto
@@ -361,11 +367,13 @@ def main():
                         for record in data:
                             if key in record:
                                 if datatype == str and isinstance(record[key], (int, float)):
-                                    record[key] = str(record[key])
+                                    # Convertir a cadena manteniendo el formato con ceros a la izquierda
+                                    record[key] = "{:02d}".format(record[key])
                     else:
                         if key in data:
                             if datatype == str and isinstance(data[key], (int, float)):
-                                data[key] = str(data[key])
+                                # Convertir a cadena manteniendo el formato con ceros a la izquierda
+                                data[key] = "{:02d}".format(data[key])
 
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = generar_nombre_aleatorio(10) + '.json'
