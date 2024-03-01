@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var authToken string
+
 func handleExcelConversion(c *gin.Context) {
+
+	authToken = c.GetHeader("Authorization")
+	if authToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Se requiere un token de autorización"})
+		return
+	}
+
 	// Obtener el archivo Excel del formulario
 	file, _, err := c.Request.FormFile("excel")
 	if err != nil {
@@ -116,7 +126,7 @@ func moveFile(fileName, destDir string) error {
 	return nil
 }
 
-func procesarArchivoJSON(rutaEntrada string, carpetaSalida string) {
+func procesarArchivoJSON(rutaEntrada string, urlAPI string, authToken string) {
 	// Leer el archivo JSON
 	contenido, err := ioutil.ReadFile(rutaEntrada)
 	if err != nil {
@@ -132,24 +142,56 @@ func procesarArchivoJSON(rutaEntrada string, carpetaSalida string) {
 		return
 	}
 
-	// Enviar cada estructura a la carpeta de salida
-	for key, estructura := range estructuras {
-		contenidoSalida, err := json.Marshal(estructura)
+	// Archivo de registro
+	logFile, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Error al abrir o crear el archivo de registro: %v\n", err)
+		return
+	}
+	defer logFile.Close()
+
+	// Enviar cada estructura a la API
+	for id, estructura := range estructuras {
+		contenidoJSON, err := json.Marshal(estructura)
 		if err != nil {
 			log.Printf("Error al convertir la estructura a JSON: %v\n", err)
 			continue
 		}
 
-		nombreArchivo := fmt.Sprintf("IDDTE%s.json", key) // Generar un nombre aleatorio para el archivo de salida
-		rutaSalida := filepath.Join(carpetaSalida, nombreArchivo)
-
-		err = ioutil.WriteFile(rutaSalida, contenidoSalida, 0644)
+		// Crear la solicitud HTTP
+		req, err := http.NewRequest("POST", urlAPI, bytes.NewBuffer(contenidoJSON))
 		if err != nil {
-			log.Printf("Error al escribir el archivo JSON %s: %v\n", rutaSalida, err)
+			log.Printf("Error al crear la solicitud HTTP: %v\n", err)
 			continue
 		}
 
-		log.Printf("Estructura enviada a %s\n", rutaSalida)
+		// Agregar el encabezado de autorización
+		req.Header.Set("Authorization", authToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		// Realizar la solicitud HTTP POST a la API
+		cliente := &http.Client{}
+		respuesta, err := cliente.Do(req)
+		if err != nil {
+			log.Printf("Error al enviar la solicitud HTTP: %v\n", err)
+			continue
+		}
+		defer respuesta.Body.Close()
+
+		// Leer el cuerpo de la respuesta
+		cuerpoRespuesta, err := ioutil.ReadAll(respuesta.Body)
+		if err != nil {
+			log.Printf("Error al leer la respuesta de la API: %v\n", err)
+			continue
+		}
+
+		// Escribir en el archivo de registro
+		logEntry := fmt.Sprintf("IDDTE: %s - Código de estado de la respuesta: %d %s\n", id, respuesta.StatusCode, respuesta.Status)
+		logEntry += fmt.Sprintf("IDDTE: %s - Mensaje de la respuesta: %s\n", id, string(cuerpoRespuesta))
+		if _, err := logFile.WriteString(logEntry); err != nil {
+			log.Printf("Error al escribir en el archivo de registro: %v\n", err)
+			continue
+		}
 	}
 }
 
@@ -180,7 +222,7 @@ func main() {
 
 			rutaArchivo := filepath.Join("responseJSON", archivo.Name())
 			if !archivosProcesados[archivo.Name()] {
-				procesarArchivoJSON(rutaArchivo, "Destino")
+				procesarArchivoJSON(rutaArchivo, "https://test.factured.sv/ApiFEL/api/v1/dte/fc", authToken)
 				archivosProcesados[archivo.Name()] = true
 			}
 		}

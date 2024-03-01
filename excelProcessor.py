@@ -249,7 +249,7 @@ def main():
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
 
-    map_selected = ccf_map
+    map_selected = fc_map
     map_datatype_selected = type_map
     map_columns_selected = map_columns
 
