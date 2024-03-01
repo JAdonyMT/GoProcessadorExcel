@@ -239,7 +239,6 @@ map_columns ={
 }
 
 
-
 def main():
     before_memory_usage = get_memory_usage()
     start_cpu_usage = psutil.cpu_percent(interval=1)
@@ -250,13 +249,12 @@ def main():
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
 
-    map_selected = fc_map
+    map_selected = ccf_map
     map_datatype_selected = type_map
     map_columns_selected = map_columns
 
     detalles_por_id = {}
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
-    
     
 
     # Procesamiento de todas las hojas
@@ -265,6 +263,20 @@ def main():
         if hoja is None:
             print(f"La hoja '{hoja_nombre}' no existe en el archivo Excel.")
             continue
+
+        # Especificar columnas que deben ser tratadas como cadenas de texto al cargar el Excel para esta hoja específica
+        if hoja_nombre == 'Identificacion':  # Nombre de la hoja en la que deseas forzar la interpretación de columnas como texto
+            columnas_texto = ['CodigoEstablecimientoMH']  # Lista de columnas que deseas tratar como texto
+        else:
+            columnas_texto = []
+
+        # Crear un diccionario con los tipos de datos para cada columna
+        dtype_dict = {col: str if col in columnas_texto else None for col in hoja.columns}
+        # Cargar el archivo Excel forzando la interpretación de ciertas columnas como cadenas de texto
+        hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict)
+        hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
+
+
 
         hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
 
@@ -281,7 +293,7 @@ def main():
                             detalles_por_id[idte][col] = val if not pd.isna(val) else None
                 else:
                     if hoja_nombre not in detalles_por_id[idte]:
-                        detalles_por_id[idte][hoja_nombre] = []
+                        detalles_por_id[idte][hoja_nombre] = [] 
                         
                     # Procesar la columna "Tributos" específicamente
                     if "Tributos" in row.index:
@@ -289,6 +301,7 @@ def main():
                         # Convertir el valor de "Tributos" a una lista con un único elemento
                         tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
                         row["Tributos"] = tributos_list     
+                        
 
                     detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
 
@@ -358,22 +371,22 @@ def main():
                     detalles_por_id_str_keys[idte][key] = value
 
     # Convertir tipos de datos según el mapa map_datatype_selected
-    for idte, detalle in detalles_por_id_str_keys.items():
-        for hoja_nombre, data in detalle.items():
-            if hoja_nombre in map_datatype_selected:
-                datatype_map = map_datatype_selected[hoja_nombre]
-                for key, datatype in datatype_map.items():
-                    if isinstance(data, list):
-                        for record in data:
-                            if key in record:
-                                if datatype == str and isinstance(record[key], (int, float)):
+        for idte, detalle in detalles_por_id_str_keys.items():
+            for hoja_nombre, data in detalle.items():
+                if hoja_nombre in map_datatype_selected:
+                    datatype_map = map_datatype_selected[hoja_nombre]
+                    for key, datatype in datatype_map.items():
+                        if isinstance(data, list):
+                            for record in data:
+                                if key in record:
+                                    if datatype == str and isinstance(record[key], (int, float)):
+                                        # Convertir a cadena manteniendo el formato con ceros a la izquierda
+                                        record[key] = "{:02d}".format(record[key])
+                        else:
+                            if key in data:
+                                if datatype == str and isinstance(data[key], (int, float)):
                                     # Convertir a cadena manteniendo el formato con ceros a la izquierda
-                                    record[key] = "{:02d}".format(record[key])
-                    else:
-                        if key in data:
-                            if datatype == str and isinstance(data[key], (int, float)):
-                                # Convertir a cadena manteniendo el formato con ceros a la izquierda
-                                data[key] = "{:02d}".format(data[key])
+                                    data[key] = "{:02d}".format(data[key])
 
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = generar_nombre_aleatorio(10) + '.json'

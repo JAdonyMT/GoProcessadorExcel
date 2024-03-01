@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -116,16 +116,6 @@ func moveFile(fileName, destDir string) error {
 	return nil
 }
 
-func generarNombreAleatorio(longitud int) string {
-	rand.Seed(time.Now().UnixNano())
-	const letras = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	resultado := make([]byte, longitud)
-	for i := range resultado {
-		resultado[i] = letras[rand.Intn(len(letras))]
-	}
-	return string(resultado)
-}
-
 func procesarArchivoJSON(rutaEntrada string, carpetaSalida string) {
 	// Leer el archivo JSON
 	contenido, err := ioutil.ReadFile(rutaEntrada)
@@ -143,14 +133,14 @@ func procesarArchivoJSON(rutaEntrada string, carpetaSalida string) {
 	}
 
 	// Enviar cada estructura a la carpeta de salida
-	for _, estructura := range estructuras {
+	for key, estructura := range estructuras {
 		contenidoSalida, err := json.Marshal(estructura)
 		if err != nil {
 			log.Printf("Error al convertir la estructura a JSON: %v\n", err)
 			continue
 		}
 
-		nombreArchivo := generarNombreAleatorio(10) + ".json" // Generar un nombre aleatorio para el archivo de salida
+		nombreArchivo := fmt.Sprintf("IDDTE%s.json", key) // Generar un nombre aleatorio para el archivo de salida
 		rutaSalida := filepath.Join(carpetaSalida, nombreArchivo)
 
 		err = ioutil.WriteFile(rutaSalida, contenidoSalida, 0644)
