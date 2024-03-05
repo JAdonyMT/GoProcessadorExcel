@@ -394,15 +394,16 @@ def main():
                                     # Convertir a cadena manteniendo el formato con ceros a la izquierda
                                     data[key] = "{:02d}".format(data[key])
 
+    nombre_archivo = os.path.splitext(os.path.basename(archivo_excel))[0]
     # Generar un único archivo JSON al final del procesamiento
-    nombre_json = generar_nombre_aleatorio(10) + '.json'
+    nombre_json = nombre_archivo + '.json'
     json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None)
     with open(nombre_json, "w") as json_file:
         json_file.write(json_data)
 
     ahora = datetime.now()
     fecha_hora = ahora.strftime("%Y%m%d%H%M%S")
-    with open('messages' + fecha_hora + '.csv', mode='a', newline='') as file:
+    with open(nombre_archivo + fecha_hora + '.csv', mode='a', newline='') as file:
         writer = csv.writer(file)
         for e in message:
             writer.writerow(e)
