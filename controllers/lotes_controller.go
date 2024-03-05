@@ -16,6 +16,7 @@ func HandleStatusConsulta(c *gin.Context, rdb *redis.Client) {
 		return
 	}
 
+	response := gin.H{"historial_lotes": estados}
 	// Devolver los estados como respuesta JSON
-	c.JSON(http.StatusOK, estados)
+	c.JSON(http.StatusOK, response)
 }
