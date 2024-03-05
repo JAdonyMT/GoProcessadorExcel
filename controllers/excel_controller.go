@@ -1,23 +1,21 @@
 package controllers
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 )
 
-func HandleExcelConversion(c *gin.Context) {
-	// authToken = c.GetHeader("Authorization")
-	// if authToken == "" {
-	// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Se requiere un token de autorización"})
-	// 	return
-	// }
-
+func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	// Obtener el archivo Excel del formulario
 	file, _, err := c.Request.FormFile("excel")
 	if err != nil {
@@ -33,10 +31,15 @@ func HandleExcelConversion(c *gin.Context) {
 		return
 	}
 
-	// Crear el archivo en la carpeta temporal con un nombre único basado en la fecha y hora actual
-	fechaHoraActual := time.Now().Format("20060102_150405") // Formato: YYYYMMDD_HHMMSS
-	nombreArchivo := "excel_" + fechaHoraActual + ".xlsx"
-	tempFile, err := os.Create(filepath.Join(tempDir, nombreArchivo))
+	// Generar el nombre del archivo con el formato Lote_{correlativo}
+	correlativo, err := generateCorrelativo(rdb)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar el correlativo"})
+		return
+	}
+	nombreArchivo := fmt.Sprintf("Lote_%03d.xlsx", correlativo)
+	tempFilePath := filepath.Join(tempDir, nombreArchivo)
+	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear archivo temporal"})
 		return
@@ -50,58 +53,88 @@ func HandleExcelConversion(c *gin.Context) {
 		return
 	}
 
+	// Devolver una respuesta al cliente indicando que el archivo se está procesando
+	c.JSON(http.StatusOK, gin.H{"message": "El archivo se está procesando"})
+
 	// Llamar al script de Python para procesar el archivo Excel
-	cmd := exec.Command("python", "excelProcessor.py", tempFile.Name())
-	err = cmd.Run()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al ejecutar script de Python"})
-		return
-	}
+	cmd := exec.Command("python", "excelProcessor.py", tempFilePath)
 
-	// Mover archivos JSON y CSV a carpetas específicas
-	responseJSONDir := "responseJSON"
-	if err := os.MkdirAll(responseJSONDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear carpeta para archivos JSON"})
-		return
-	}
+	// Capturar la salida estándar y la salida de error del proceso
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	csvJSONDir := "csvErrors"
-	if err := os.MkdirAll(csvJSONDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear carpeta para archivos CSV"})
-		return
-	}
-
-	// Obtener los nombres de los archivos generados
-	files, err := filepath.Glob("*.json")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener nombres de archivos JSON"})
-		return
-	}
-
-	// Mover archivos JSON a la carpeta responseJSON
-	for _, f := range files {
-		if err := moveFile(f, responseJSONDir); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al mover archivo JSON"})
+	// Ejecutar el proceso en segundo plano
+	go func() {
+		err := cmd.Run()
+		if err != nil {
+			// Si la ejecución del script no fue exitosa, guardar un mensaje de error en Redis
+			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s", err, stderr.String())
+			err = rdb.HSet(context.Background(), "historial_archivos", nombreArchivo, errMsg).Err()
+			if err != nil {
+				log.Println("Error al guardar el estado en el historial de Redis:", err)
+			}
 			return
 		}
-	}
 
-	// Obtener los nombres de los archivos generados
-	files, err = filepath.Glob("*.csv")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener nombres de archivos CSV"})
-		return
-	}
+		successMessage := "Proceso de conversion exitoso"
+		err = rdb.HSet(context.Background(), "historial_archivos", nombreArchivo, successMessage).Err()
+		if err != nil {
+			log.Println("Error al guardar el estado en el historial de Redis:", err)
+		}
 
-	// Mover archivos CSV a la carpeta csvJSON
-	for _, f := range files {
-		if err := moveFile(f, csvJSONDir); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al mover archivo CSV"})
+		// Mover archivos JSON y CSV a carpetas específicas
+		responseJSONDir := "responseJSON"
+		if err := os.MkdirAll(responseJSONDir, 0755); err != nil {
+			log.Println("Error al crear carpeta para archivos JSON:", err)
 			return
 		}
-	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Archivos procesados exitosamente"})
+		csvJSONDir := "csvErrors"
+		if err := os.MkdirAll(csvJSONDir, 0755); err != nil {
+			log.Println("Error al crear carpeta para archivos CSV:", err)
+			return
+		}
+
+		// Obtener los nombres de los archivos generados
+		files, err := filepath.Glob("*.json")
+		if err != nil {
+			log.Println("Error al obtener nombres de archivos JSON:", err)
+			return
+		}
+
+		// Mover archivos JSON a la carpeta responseJSON
+		for _, f := range files {
+			if err := moveFile(f, responseJSONDir); err != nil {
+				log.Println("Error al mover archivo JSON:", err)
+				return
+			}
+		}
+
+		// Obtener los nombres de los archivos generados
+		files, err = filepath.Glob("*.csv")
+		if err != nil {
+			log.Println("Error al obtener nombres de archivos CSV:", err)
+			return
+		}
+
+		// Mover archivos CSV a la carpeta csvErrors
+		for _, f := range files {
+			if err := moveFile(f, csvJSONDir); err != nil {
+				log.Println("Error al mover archivo CSV:", err)
+				return
+			}
+		}
+	}()
+}
+
+func generateCorrelativo(rdb *redis.Client) (int, error) {
+	// Incrementar el contador en Redis
+	val, err := rdb.Incr(context.Background(), "contador_lotes").Result()
+	if err != nil {
+		return 0, err
+	}
+	return int(val), nil
 }
 
 func moveFile(fileName, destDir string) error {

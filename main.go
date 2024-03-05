@@ -26,6 +26,6 @@ func main() {
 	}
 	log.Printf("Conexión a Redis establecida: %s", pong)
 
-	r := routes.SetupRouter()
+	r := routes.SetupRouter(rdb)
 	r.Run(":8080")
 }
