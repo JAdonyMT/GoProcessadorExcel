@@ -245,11 +245,18 @@ def main():
     start_time = time.time()
 
     archivo_excel = sys.argv[1]
+    tipo_dte = sys.argv[2]
     hojas = pd.read_excel(archivo_excel, sheet_name=None)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
+    map_dte = {
+        "01": fc_map,
+        "03": ccf_map,
+        "11": fex_map,
+        "05": nc_map
+    }
 
-    map_selected = fc_map
+    map_selected = map_dte.get(tipo_dte)
     map_datatype_selected = type_map
     map_columns_selected = map_columns
 

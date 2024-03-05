@@ -16,6 +16,19 @@ import (
 )
 
 func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
+
+	authToken := c.GetHeader("Authorization")
+	if authToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token de autorización faltante"})
+		return
+	}
+
+	tipoDte := c.GetHeader("tipoDte")
+	if tipoDte == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Falta el parámetro tipoDte"})
+		return
+	}
+
 	// Obtener el archivo Excel del formulario
 	file, _, err := c.Request.FormFile("excel")
 	if err != nil {
@@ -57,7 +70,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	c.JSON(http.StatusOK, gin.H{"message": "El archivo se está procesando"})
 
 	// Llamar al script de Python para procesar el archivo Excel
-	cmd := exec.Command("python", "excelProcessor.py", tempFilePath)
+	cmd := exec.Command("python", "excelProcessor.py", tempFilePath, tipoDte)
 
 	// Capturar la salida estándar y la salida de error del proceso
 	var stdout, stderr bytes.Buffer
