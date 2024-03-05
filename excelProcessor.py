@@ -264,19 +264,18 @@ def main():
             print(f"La hoja '{hoja_nombre}' no existe en el archivo Excel.")
             continue
 
-        # Especificar columnas que deben ser tratadas como cadenas de texto al cargar el Excel para esta hoja específica
-        if hoja_nombre == 'Identificacion':  # Nombre de la hoja en la que deseas forzar la interpretación de columnas como texto
-            columnas_texto = ['CodigoEstablecimientoMH']  # Lista de columnas que deseas tratar como texto
+        # Especificar columnas que deben ser tratadas como cadenas de texto al cargar el Excel para esta hoja según el mapa de tipos de datos
+        if hoja_nombre in map_datatype_selected:
+            datatype_map = map_datatype_selected[hoja_nombre]
+            columnas_texto = [col for col, dtype in datatype_map.items() if dtype == str]
         else:
             columnas_texto = []
 
         # Crear un diccionario con los tipos de datos para cada columna
         dtype_dict = {col: str if col in columnas_texto else None for col in hoja.columns}
+
         # Cargar el archivo Excel forzando la interpretación de ciertas columnas como cadenas de texto
         hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict)
-        hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
-
-
 
         hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
 
