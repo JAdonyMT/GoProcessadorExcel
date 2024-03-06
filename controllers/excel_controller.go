@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"GoProcesadorExcel/utils"
 	"bytes"
 	"context"
 	"fmt"
@@ -38,7 +39,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	defer file.Close()
 
 	// Crear una carpeta temporal para almacenar los archivos recibidos
-	tempDir := "archivos_excel"
+	tempDir := "data/archivos_excel"
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear carpeta temporal"})
 		return
@@ -97,13 +98,13 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		}
 
 		// Mover archivos JSON y CSV a carpetas específicas
-		responseJSONDir := "responseJSON"
+		responseJSONDir := "data/responseJSON"
 		if err := os.MkdirAll(responseJSONDir, 0755); err != nil {
 			log.Println("Error al crear carpeta para archivos JSON:", err)
 			return
 		}
 
-		csvJSONDir := "csvErrors"
+		csvJSONDir := "data/csvErrors"
 		if err := os.MkdirAll(csvJSONDir, 0755); err != nil {
 			log.Println("Error al crear carpeta para archivos CSV:", err)
 			return
@@ -138,6 +139,14 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 				return
 			}
 		}
+		// Obtener el nombre del archivo JSON basado en el correlativo
+		nombreArchivoJSON := fmt.Sprintf("Lote_%03d.json", correlativo)
+
+		// Construir la ruta completa del archivo JSON
+		rutaArchivoJSON := filepath.Join(responseJSONDir, nombreArchivoJSON)
+
+		// Llamar a la función para procesar el archivo JSON recibido y enviarlo a la API
+		utils.ProcesarArchivoJSON(rutaArchivoJSON, tipoDte, authToken, rdb, correlativo)
 	}()
 }
 

@@ -2,15 +2,36 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/go-redis/redis/v8"
 )
 
-func ProcesarArchivoJSON(rutaEntrada string, urlAPI string, authToken string) {
+var apiMap = map[string]string{
+	"01": "/dte/fc",
+	"03": "/dte/ccf",
+	"11": "/dte/fex",
+	"05": "/dte/nc",
+}
+
+func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, rdb *redis.Client, correlativo int) {
+	dteApi, ok := apiMap[tipoDte]
+	if !ok {
+		log.Printf("Tipo de DTE no válido: %s\n", tipoDte)
+		return
+	}
+
+	apiURL := os.Getenv("LOCALHOST_API")
+	api := apiURL + dteApi
+
+	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)
+
 	// Leer el archivo JSON
 	contenido, err := ioutil.ReadFile(rutaEntrada)
 	if err != nil {
@@ -26,15 +47,7 @@ func ProcesarArchivoJSON(rutaEntrada string, urlAPI string, authToken string) {
 		return
 	}
 
-	// Archivo de registro
-	logFile, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Printf("Error al abrir o crear el archivo de registro: %v\n", err)
-		return
-	}
-	defer logFile.Close()
-
-	// Enviar cada estructura a la API
+	// Enviar cada estructura a la API y registrar su estado en Redis
 	for id, estructura := range estructuras {
 		contenidoJSON, err := json.Marshal(estructura)
 		if err != nil {
@@ -43,9 +56,11 @@ func ProcesarArchivoJSON(rutaEntrada string, urlAPI string, authToken string) {
 		}
 
 		// Crear la solicitud HTTP
-		req, err := http.NewRequest("POST", urlAPI, bytes.NewBuffer(contenidoJSON))
+		req, err := http.NewRequest("POST", api, bytes.NewBuffer(contenidoJSON))
 		if err != nil {
 			log.Printf("Error al crear la solicitud HTTP: %v\n", err)
+			// Guardar el error en Redis
+			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
 			continue
 		}
 
@@ -58,6 +73,8 @@ func ProcesarArchivoJSON(rutaEntrada string, urlAPI string, authToken string) {
 		respuesta, err := cliente.Do(req)
 		if err != nil {
 			log.Printf("Error al enviar la solicitud HTTP: %v\n", err)
+			// Guardar el error en Redis
+			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
 			continue
 		}
 		defer respuesta.Body.Close()
@@ -66,15 +83,39 @@ func ProcesarArchivoJSON(rutaEntrada string, urlAPI string, authToken string) {
 		cuerpoRespuesta, err := ioutil.ReadAll(respuesta.Body)
 		if err != nil {
 			log.Printf("Error al leer la respuesta de la API: %v\n", err)
+			// Guardar el error en Redis
+			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
 			continue
 		}
 
+		// Obtener el estado de la respuesta
+		estadoRespuesta := fmt.Sprintf("Códe: %d %s, Menssage: %s", respuesta.StatusCode, respuesta.Status, string(cuerpoRespuesta))
+
+		// Registrar el estado del IDDTE en Redis
+		guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, estadoRespuesta)
+
+		// Crear el archivo de registro
+		logFileName := "log.txt"
+		logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
+			return
+		}
+		defer logFile.Close()
+
 		// Escribir en el archivo de registro
-		logEntry := fmt.Sprintf("IDDTE: %s - Código de estado de la respuesta: %d %s\n", id, respuesta.StatusCode, respuesta.Status)
-		logEntry += fmt.Sprintf("IDDTE: %s - Mensaje de la respuesta: %s\n", id, string(cuerpoRespuesta))
+		logEntry := fmt.Sprintf("IDDTE: %s - Código de estado de la respuesta: %d %s\n", "IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
+		logEntry += fmt.Sprintf("IDDTE: %s - Mensaje de la respuesta: %s\n", "IDDTE-"+id, string(cuerpoRespuesta))
 		if _, err := logFile.WriteString(logEntry); err != nil {
 			log.Printf("Error al escribir en el archivo de registro: %v\n", err)
 			continue
 		}
+	}
+}
+
+func guardarEstadoEnRedis(rdb *redis.Client, nombreLote string, id string, estado string) {
+	// Guardar el estado en el hash del lote correspondiente
+	if err := rdb.HSet(context.Background(), nombreLote, id, estado).Err(); err != nil {
+		log.Printf("Error al guardar el estado en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
 	}
 }

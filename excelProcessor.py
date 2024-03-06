@@ -312,11 +312,11 @@ def main():
                     detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
 
             except Exception as e:
-                error_line = sys.exc_info()[2].tb_lineno
-                print(f"Hubo un error: {e}, en la linea: {error_line}")
+                columna_error = hoja.columns[index]
+                error_info = f"Error en la columna '{columna_error}': {e}"
                 ahora = datetime.now()
                 fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
-                message.append([hoja.iloc[index]['IDDTE'], f"Hubo un error: {e}, en la linea: {error_line}", fecha_hora, "Error"])
+                message.append([hoja.iloc[index]['IDDTE'], error_info, fecha_hora, "Error"])
 
     # Integrar fc_map en detalles_por_id
     for idte, detalle in detalles_por_id.items():

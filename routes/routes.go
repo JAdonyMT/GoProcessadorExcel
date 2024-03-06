@@ -18,5 +18,9 @@ func SetupRouter(rdb *redis.Client) *gin.Engine {
 		controllers.HandleStatusConsulta(c, rdb)
 	})
 
+	r.GET("/iddteStatus", func(c *gin.Context) {
+		controllers.HandleStatusIddte(c, rdb)
+	})
+
 	return r
 }
