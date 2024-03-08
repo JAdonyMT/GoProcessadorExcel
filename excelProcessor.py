@@ -53,7 +53,8 @@ ccf_map ={
         "NumeroIntentos": 0,
         "VentaTercero": False,
         "NitTercero": None,
-        "NombreTercero": None
+        "NombreTercero": None,
+        "Rechazado": False
     },
     "Identificacion":{
         "TipoDte": "03"
@@ -119,6 +120,7 @@ type_map = {
         "NitTercero": str,
         "NombreTercero": str,
         "CodigoCondicionOperacion": str,
+        "Rechazado": bool
     },
     "Identificacion": {
         "TipoDte": str,
@@ -258,135 +260,168 @@ def main():
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
     
 
-    # Procesamiento de todas las hojas
+        # Procesamiento de todas las hojas
     for hoja_nombre in hojas_a_procesar:
-        hoja = hojas.get(hoja_nombre)
-        if hoja is None:
-            print(f"La hoja '{hoja_nombre}' no existe en el archivo Excel.")
-            continue
+        try:
+            hoja = hojas.get(hoja_nombre)
+            if hoja is None:
+                print(f"La hoja '{hoja_nombre}' no existe en el archivo Excel.")
+                continue
 
-        # Especificar columnas que deben ser tratadas como cadenas de texto al cargar el Excel para esta hoja según el mapa de tipos de datos
-        if hoja_nombre in map_datatype_selected:
-            datatype_map = map_datatype_selected[hoja_nombre]
-            columnas_texto = [col for col, dtype in datatype_map.items() if dtype == str]
-        else:
-            columnas_texto = []
+            # Especificar columnas que deben ser tratadas como cadenas de texto al cargar el Excel para esta hoja según el mapa de tipos de datos
+            if hoja_nombre in map_datatype_selected:
+                datatype_map = map_datatype_selected[hoja_nombre]
+                columnas_texto = [col for col, dtype in datatype_map.items() if dtype == str]
+            else:
+                columnas_texto = []
 
-        # Crear un diccionario con los tipos de datos para cada columna
-        dtype_dict = {col: str if col in columnas_texto else None for col in hoja.columns}
+            # Crear un diccionario con los tipos de datos para cada columna
+            dtype_dict = {col: str if col in columnas_texto else None for col in hoja.columns}
 
-        # Cargar el archivo Excel forzando la interpretación de ciertas columnas como cadenas de texto
-        hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict)
-
-        hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
-
-        for index, row in hoja.iterrows():  
             try:
-                idte = row['IDDTE']
-                detalle = detalles_por_id.get(idte, {})
-                if not detalle:
-                    detalles_por_id[idte] = {}
-
-                if hoja_nombre == hojas_a_procesar[0]:  # Procesar la primera hoja
-                    for col, val in row.items():
-                        if col != 'IDDTE':
-                            detalles_por_id[idte][col] = val if not pd.isna(val) else None
-                else:
-                    if hoja_nombre not in detalles_por_id[idte]:
-                        detalles_por_id[idte][hoja_nombre] = [] 
-                        
-                    # Procesar la columna "Tributos" específicamente
-                    if "Tributos" in row.index:
-                        tributos_value = row["Tributos"]
-                        # Convertir el valor de "Tributos" a una lista con un único elemento
-                        tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
-                        row["Tributos"] = tributos_list     
-                        
-
-                    detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
-
+                hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict)
             except Exception as e:
-                columna_error = hoja.columns[index]
-                error_info = f"Error en la columna '{columna_error}': {e}"
-                ahora = datetime.now()
-                fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
-                message.append([hoja.iloc[index]['IDDTE'], error_info, fecha_hora, "Error"])
+                print(f"Error al cargar la hoja '{hoja_nombre}' del archivo Excel: {e}")
+                continue
 
+            try:
+                hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
+            except Exception as e:
+                print(f"Error al renombrar las columnas de la hoja '{hoja_nombre}': {e}")
+                continue
+            
+            for index, row in hoja.iterrows():  
+                try:
+                    idte = row['IDDTE']
+                    detalle = detalles_por_id.get(idte, {})
+                    if not detalle:
+                        detalles_por_id[idte] = {}
+
+                    if hoja_nombre == hojas_a_procesar[0]:  # Procesar la primera hoja
+                        for col, val in row.items():
+                            if col != 'IDDTE':
+                                detalles_por_id[idte][col] = val if not pd.isna(val) else None
+                    else:
+                        if hoja_nombre not in detalles_por_id[idte]:
+                            detalles_por_id[idte][hoja_nombre] = [] 
+                            
+                        # Procesar la columna "Tributos" específicamente
+                        if "Tributos" in row.index:
+                            tributos_value = row["Tributos"]
+                            # Convertir el valor de "Tributos" a una lista con un único elemento
+                            tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
+                            row["Tributos"] = tributos_list     
+                            
+
+                        detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
+
+                except Exception as e:
+                    columna_error = hoja.columns[index]
+                    error_info = f"Error en la columna '{columna_error}': {e}"
+                    ahora = datetime.now()
+                    fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    message.append([hoja.iloc[index]['IDDTE'], error_info, fecha_hora, "Error"])
+
+        except Exception as e:
+            print(f"Error al procesar la hoja '{hoja_nombre}': {e}")
+            continue
+    
     # Integrar map_selected en detalles_por_id
     for idte, detalle in detalles_por_id.items():
-        for hoja_nombre, datos_fijos in map_selected.items():
-            if hoja_nombre != "dte":
-                if idte not in detalles_por_id:
-                    detalles_por_id[idte] = {}
+        try:
+            for hoja_nombre, datos_fijos in map_selected.items():
+                if hoja_nombre != "dte":
+                    if idte not in detalles_por_id:
+                        detalles_por_id[idte] = {}
 
-                if hoja_nombre not in detalles_por_id[idte]:
-                    if isinstance(datos_fijos, dict):
-                        detalles_por_id[idte][hoja_nombre] = [datos_fijos.copy()]  # Añadir datos fijos como lista
-                    elif isinstance(datos_fijos, list):
-                        detalles_por_id[idte][hoja_nombre] = [fijo.copy() for fijo in datos_fijos]  # Añadir datos fijos como lista
-                else:
-                    if isinstance(datos_fijos, dict):
-                        for item in detalles_por_id[idte][hoja_nombre]:
-                            item.update(datos_fijos.copy())
-                    elif isinstance(datos_fijos, list):
-                        for fijo in datos_fijos:
-                            detalles_por_id[idte][hoja_nombre].append(fijo.copy())
-                            
+                    if hoja_nombre not in detalles_por_id[idte]:
+                        if isinstance(datos_fijos, dict):
+                            detalles_por_id[idte][hoja_nombre] = [datos_fijos.copy()]  # Añadir datos fijos como lista
+                        elif isinstance(datos_fijos, list):
+                            detalles_por_id[idte][hoja_nombre] = [fijo.copy() for fijo in datos_fijos]  # Añadir datos fijos como lista
+                    else:
+                        if isinstance(datos_fijos, dict):
+                            for item in detalles_por_id[idte][hoja_nombre]:
+                                item.update(datos_fijos.copy())
+                        elif isinstance(datos_fijos, list):
+                            for fijo in datos_fijos:
+                                detalles_por_id[idte][hoja_nombre].append(fijo.copy())
+        except Exception as e:
+            print(f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}")
+                                
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
-        for hoja_nombre, data in detalle.items():
-            if hoja_nombre in ["Detalles", "DocumentosRelacionados"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
-                # Asegurar que la hoja siempre sea una lista
-                if not isinstance(data, list):
-                    detalles_por_id[idte][hoja_nombre] = [data]
-            elif isinstance(data, list) and len(data) == 1:  # Convertir a lista si solo hay un objeto
-                detalles_por_id[idte][hoja_nombre] = data[0]
+        try:
+            for hoja_nombre, data in detalle.items():
+                if hoja_nombre in ["Detalles", "DocumentosRelacionados"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
+                    # Asegurar que la hoja siempre sea una lista
+                    if not isinstance(data, list):
+                        detalles_por_id[idte][hoja_nombre] = [data]
+                elif isinstance(data, list) and len(data) == 1:  # Convertir a lista si solo hay un objeto
+                    detalles_por_id[idte][hoja_nombre] = data[0]
+        except Exception as e:
+            print(f"Error al convertir la hoja '{hoja_nombre}' en objeto para el IDDTE '{idte}': {e}")
+
 
     for idte in detalles_por_id:
-        message.append([idte, '', '', 'SUCCESS'])
+        try:
+            message.append([idte, '', '', 'SUCCESS'])
+        except Exception as e:
+            print(f"Error al agregar el mensaje de éxito para el IDDTE '{idte}': {e}")
 
-    # Convertir las claves numpy.int64 a str
-    detalles_por_id_str_keys = {str(key): value for key, value in detalles_por_id.items()}
-
+        # Convertir las claves numpy.int64 a str
+    try:      
+        detalles_por_id_str_keys = {str(key): value for key, value in detalles_por_id.items()}
+    except Exception as e:
+        print(f"Error al convertir las claves a cadena de texto: {e}")
 
     # Convertir NaN a None para representarlos como null en el JSON
     for idte, detalle in detalles_por_id_str_keys.items():
-        for key, value in detalle.items():
-            if isinstance(value, dict):
-                for k, v in value.items():
-                    if pd.isna(v):
-                        value[k] = None
-            elif isinstance(value, list):
-                for record in value:
-                    for k, v in record.items():
+        try:
+            for key, value in detalle.items():
+                if isinstance(value, dict):
+                    for k, v in value.items():
                         if pd.isna(v):
-                            record[k] = None
-
+                            value[k] = None
+                elif isinstance(value, list):
+                    for record in value:
+                        for k, v in record.items():
+                            if pd.isna(v):
+                                record[k] = None
+        except Exception as e:
+            print(f"Error al convertir valores a null para el IDDTE '{idte}': {e}")
+            
     # Agregar datos del objeto "dte" directamente en la raíz
     for idte, detalle in detalles_por_id_str_keys.items():
-        if "dte" in map_selected:
-            dte_data = map_selected["dte"]
-            for key, value in dte_data.items():
-                if key not in detalle:
-                    detalles_por_id_str_keys[idte][key] = value
-
-    # Convertir tipos de datos según el mapa map_datatype_selected
-        for idte, detalle in detalles_por_id_str_keys.items():
-            for hoja_nombre, data in detalle.items():
-                if hoja_nombre in map_datatype_selected:
-                    datatype_map = map_datatype_selected[hoja_nombre]
-                    for key, datatype in datatype_map.items():
-                        if isinstance(data, list):
-                            for record in data:
-                                if key in record:
-                                    if datatype == str and isinstance(record[key], (int, float)):
+        try:
+            if "dte" in map_selected:
+                dte_data = map_selected["dte"]
+                for key, value in dte_data.items():
+                    if key not in detalle:
+                        detalles_por_id_str_keys[idte][key] = value
+        except Exception as e:
+            print(f"Error al agregar datos del objeto 'dte' a la raiz para el IDDTE '{idte}': {e}")
+            
+        # Convertir tipos de datos según el mapa map_datatype_selected
+        try:
+            for idte, detalle in detalles_por_id_str_keys.items():
+                for hoja_nombre, data in detalle.items():
+                    if hoja_nombre in map_datatype_selected:
+                        datatype_map = map_datatype_selected[hoja_nombre]
+                        for key, datatype in datatype_map.items():
+                            if isinstance(data, list):
+                                for record in data:
+                                    if key in record:
+                                        if datatype == str and isinstance(record[key], (int, float)):
+                                            # Convertir a cadena manteniendo el formato con ceros a la izquierda
+                                            record[key] = "{:02d}".format(record[key])
+                            else:
+                                if key in data:
+                                    if datatype == str and isinstance(data[key], (int, float)):
                                         # Convertir a cadena manteniendo el formato con ceros a la izquierda
-                                        record[key] = "{:02d}".format(record[key])
-                        else:
-                            if key in data:
-                                if datatype == str and isinstance(data[key], (int, float)):
-                                    # Convertir a cadena manteniendo el formato con ceros a la izquierda
-                                    data[key] = "{:02d}".format(data[key])
+                                        data[key] = "{:02d}".format(data[key])
+        except Exception as e:
+            print(f"Error al convertir tipos de datos para el IDDTE '{idte}': {e}")
 
     nombre_archivo = os.path.splitext(os.path.basename(archivo_excel))[0]
     # Generar un único archivo JSON al final del procesamiento

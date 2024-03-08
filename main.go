@@ -19,9 +19,9 @@ func main() {
 
 	// Configurar la conexión a Redis
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // Dirección de tu instancia de Redis
-		Password: "",               // Contraseña (si es necesario)
-		DB:       0,                // Número de la base de datos
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
 	})
 
 	// Verificar la conexión a Redis

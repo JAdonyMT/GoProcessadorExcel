@@ -17,7 +17,7 @@ var apiMap = map[string]string{
 	"01": "/dte/fc",
 	"03": "/dte/ccf",
 	"11": "/dte/fex",
-	"05": "/dte/nc",
+	"05": "/dte/ncnd",
 }
 
 func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, rdb *redis.Client, correlativo int) {
@@ -27,7 +27,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		return
 	}
 
-	apiURL := os.Getenv("LOCALHOST_API")
+	apiURL := os.Getenv("FACTURED_API")
 	api := apiURL + dteApi
 
 	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)

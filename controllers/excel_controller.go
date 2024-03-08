@@ -20,7 +20,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 
 	authToken := c.GetHeader("Authorization")
 	if authToken == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Token de autorización faltante"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token vacio o invalido"})
 		return
 	}
 
