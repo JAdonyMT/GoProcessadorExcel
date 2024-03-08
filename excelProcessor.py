@@ -10,12 +10,6 @@ import string
 from datetime import datetime
 import csv
 
-def generar_nombre_aleatorio(longitud):
-    ahora = datetime.now()
-    caracteres = string.ascii_letters + string.digits
-    nombre = ''.join(random.choice(caracteres) for _ in range(longitud))
-    return nombre + ahora.strftime("%Y%m%d%H%M%S")
-
 def get_memory_usage():
     pid = os.getpid()
     proc = psutil.Process(pid)
@@ -286,7 +280,7 @@ def main():
 
         hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
 
-        for index, row in hoja.iterrows():
+        for index, row in hoja.iterrows():  
             try:
                 idte = row['IDDTE']
                 detalle = detalles_por_id.get(idte, {})
@@ -318,7 +312,7 @@ def main():
                 fecha_hora = ahora.strftime("%Y-%m-%d %H:%M:%S")
                 message.append([hoja.iloc[index]['IDDTE'], error_info, fecha_hora, "Error"])
 
-    # Integrar fc_map en detalles_por_id
+    # Integrar map_selected en detalles_por_id
     for idte, detalle in detalles_por_id.items():
         for hoja_nombre, datos_fijos in map_selected.items():
             if hoja_nombre != "dte":
