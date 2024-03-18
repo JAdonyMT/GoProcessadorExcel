@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"GoProcesadorExcel/utils"
 	"bytes"
 	"context"
 	"fmt"
@@ -9,23 +10,43 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
 
 func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
+
+	authToken := c.GetHeader("Authorization")
+	if authToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token vacio o invalido"})
+		return
+	}
+
+	tipoDte := c.GetHeader("tipoDte")
+	if tipoDte == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Falta el parámetro tipoDte"})
+		return
+	}
+
 	// Obtener el archivo Excel del formulario
-	file, _, err := c.Request.FormFile("excel")
+	file, fileHeader, err := c.Request.FormFile("excel")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No se pudo obtener el archivo Excel"})
 		return
 	}
 	defer file.Close()
 
+	if path.Ext(fileHeader.Filename) != ".xlsx" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo no es un archivo Excel"})
+		return
+	}
+
 	// Crear una carpeta temporal para almacenar los archivos recibidos
-	tempDir := "archivos_excel"
+	tempDir := "data/archivos_excel"
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear carpeta temporal"})
 		return
@@ -57,7 +78,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	c.JSON(http.StatusOK, gin.H{"message": "El archivo se está procesando"})
 
 	// Llamar al script de Python para procesar el archivo Excel
-	cmd := exec.Command("python", "excelProcessor.py", tempFilePath)
+	cmd := exec.Command("python", "excelProcessor.py", tempFilePath, tipoDte)
 
 	// Capturar la salida estándar y la salida de error del proceso
 	var stdout, stderr bytes.Buffer
@@ -70,7 +91,8 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		if err != nil {
 			// Si la ejecución del script no fue exitosa, guardar un mensaje de error en Redis
 			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s", err, stderr.String())
-			err = rdb.HSet(context.Background(), "historial_archivos", nombreArchivo, errMsg).Err()
+			// Guardar el estado con expiración
+			err = rdb.Set(context.Background(), nombreArchivo, errMsg, 10*time.Minute).Err()
 			if err != nil {
 				log.Println("Error al guardar el estado en el historial de Redis:", err)
 			}
@@ -78,19 +100,19 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		}
 
 		successMessage := "Proceso de conversion exitoso"
-		err = rdb.HSet(context.Background(), "historial_archivos", nombreArchivo, successMessage).Err()
+		// Guardar el estado con expiración
+		err = rdb.Set(context.Background(), nombreArchivo, successMessage, 24*time.Hour).Err()
 		if err != nil {
 			log.Println("Error al guardar el estado en el historial de Redis:", err)
 		}
-
 		// Mover archivos JSON y CSV a carpetas específicas
-		responseJSONDir := "responseJSON"
+		responseJSONDir := "data/responseJSON"
 		if err := os.MkdirAll(responseJSONDir, 0755); err != nil {
 			log.Println("Error al crear carpeta para archivos JSON:", err)
 			return
 		}
 
-		csvJSONDir := "csvErrors"
+		csvJSONDir := "data/csvErrors"
 		if err := os.MkdirAll(csvJSONDir, 0755); err != nil {
 			log.Println("Error al crear carpeta para archivos CSV:", err)
 			return
@@ -125,6 +147,14 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 				return
 			}
 		}
+		// Obtener el nombre del archivo JSON basado en el correlativo
+		nombreArchivoJSON := fmt.Sprintf("Lote_%03d.json", correlativo)
+
+		// Construir la ruta completa del archivo JSON
+		rutaArchivoJSON := filepath.Join(responseJSONDir, nombreArchivoJSON)
+
+		// Llamar a la función para procesar el archivo JSON recibido y enviarlo a la API
+		utils.ProcesarArchivoJSON(rutaArchivoJSON, tipoDte, authToken, rdb, correlativo)
 	}()
 }
 
