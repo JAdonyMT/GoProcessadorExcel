@@ -5,8 +5,6 @@ import os
 import sys
 import pandas as pd
 import json
-import random
-import string
 from datetime import datetime
 import csv
 
@@ -242,7 +240,12 @@ def main():
 
     archivo_excel = sys.argv[1]
     tipo_dte = sys.argv[2]
-    hojas = pd.read_excel(archivo_excel, sheet_name=None)
+    try:
+        hojas = pd.read_excel(archivo_excel, sheet_name=None)
+    except Exception as e:
+        message.append(['', f"Error al cargar el archivo Excel: {e}", '', "Error"])
+        print(f"Error al cargar el archivo Excel: {e}")
+        return
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
     map_dte = {
@@ -265,7 +268,14 @@ def main():
         try:
             hoja = hojas.get(hoja_nombre)
             if hoja is None:
+                message.append(['', f"La hoja '{hoja_nombre}' no existe en el archivo Excel.", '', "Error"])
                 print(f"La hoja '{hoja_nombre}' no existe en el archivo Excel.")
+                continue
+            
+            # Verificar si la hoja está vacía
+            if hoja.empty:
+                message.append(['', f"La hoja '{hoja_nombre}' está vacia.", '', "Error"])
+                print(f"La hoja '{hoja_nombre}' está vacia.")
                 continue
 
             # Especificar columnas que deben ser tratadas como cadenas de texto al cargar el Excel para esta hoja según el mapa de tipos de datos
@@ -281,18 +291,24 @@ def main():
             try:
                 hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict)
             except Exception as e:
+                message.append(['', f"Error al cargar la hoja '{hoja_nombre}' del archivo Excel: {e}", '', "Error"])
                 print(f"Error al cargar la hoja '{hoja_nombre}' del archivo Excel: {e}")
                 continue
 
             try:
                 hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
             except Exception as e:
+                message.append(['', f"Error al renombrar las columnas de la hoja '{hoja_nombre}': {e}", '', "Error"])
                 print(f"Error al renombrar las columnas de la hoja '{hoja_nombre}': {e}")
                 continue
             
             for index, row in hoja.iterrows():  
                 try:
                     idte = row['IDDTE']
+                    if pd.isnull(idte) or idte == '':
+                        print(f"La columna 'IDDTE' no puede estar vacia. Hoja: {hoja_nombre}    ")
+                        raise ValueError("La columna 'IDDTE' no puede estar vacia.")
+                    
                     detalle = detalles_por_id.get(idte, {})
                     if not detalle:
                         detalles_por_id[idte] = {}
@@ -323,6 +339,7 @@ def main():
                     message.append([hoja.iloc[index]['IDDTE'], error_info, fecha_hora, "Error"])
 
         except Exception as e:
+            message.append(['', f"Error al procesar la hoja '{hoja_nombre}': {e}", '', "Error"])
             print(f"Error al procesar la hoja '{hoja_nombre}': {e}")
             continue
     
@@ -347,6 +364,7 @@ def main():
                             for fijo in datos_fijos:
                                 detalles_por_id[idte][hoja_nombre].append(fijo.copy())
         except Exception as e:
+            message.append([idte, f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}", '', "Error"])
             print(f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}")
                                 
     # Convertir la hoja en objeto si tiene solo una fila asociada
@@ -360,6 +378,7 @@ def main():
                 elif isinstance(data, list) and len(data) == 1:  # Convertir a lista si solo hay un objeto
                     detalles_por_id[idte][hoja_nombre] = data[0]
         except Exception as e:
+            message.append([idte, f"Error al convertir la hoja '{hoja_nombre}' en objeto para el IDDTE '{idte}': {e}", '', "Error"])
             print(f"Error al convertir la hoja '{hoja_nombre}' en objeto para el IDDTE '{idte}': {e}")
 
 
@@ -367,12 +386,14 @@ def main():
         try:
             message.append([idte, '', '', 'SUCCESS'])
         except Exception as e:
-            print(f"Error al agregar el mensaje de éxito para el IDDTE '{idte}': {e}")
+            message.append([idte, f"Error al agregar el mensaje de exito para el IDDTE '{idte}': {e}", '', "Error"])
+            print(f"Error al agregar el mensaje de exito para el IDDTE '{idte}': {e}")
 
         # Convertir las claves numpy.int64 a str
     try:      
         detalles_por_id_str_keys = {str(key): value for key, value in detalles_por_id.items()}
     except Exception as e:
+        message.append(['', f"Error al convertir las claves a cadena de texto: {e}", '', "Error"])
         print(f"Error al convertir las claves a cadena de texto: {e}")
 
     # Convertir NaN a None para representarlos como null en el JSON
@@ -389,6 +410,7 @@ def main():
                             if pd.isna(v):
                                 record[k] = None
         except Exception as e:
+            message.append([idte, f"Error al convertir valores a null para el IDDTE '{idte}': {e}", '', "Error"])
             print(f"Error al convertir valores a null para el IDDTE '{idte}': {e}")
             
     # Agregar datos del objeto "dte" directamente en la raíz
@@ -400,6 +422,7 @@ def main():
                     if key not in detalle:
                         detalles_por_id_str_keys[idte][key] = value
         except Exception as e:
+            message.append([idte, f"Error al agregar datos del objeto 'dte' a la raiz para el IDDTE '{idte}': {e}", '', "Error"])
             print(f"Error al agregar datos del objeto 'dte' a la raiz para el IDDTE '{idte}': {e}")
             
         # Convertir tipos de datos según el mapa map_datatype_selected
@@ -421,6 +444,7 @@ def main():
                                         # Convertir a cadena manteniendo el formato con ceros a la izquierda
                                         data[key] = "{:02d}".format(data[key])
         except Exception as e:
+            message.append([idte, f"Error al convertir tipos de datos para el IDDTE '{idte}': {e}", '', "Error"])
             print(f"Error al convertir tipos de datos para el IDDTE '{idte}': {e}")
 
     nombre_archivo = os.path.splitext(os.path.basename(archivo_excel))[0]

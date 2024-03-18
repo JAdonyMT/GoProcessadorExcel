@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -111,11 +112,19 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 			continue
 		}
 	}
+	// fmt.Println("Documentos json enviados con exito")
 }
 
 func guardarEstadoEnRedis(rdb *redis.Client, nombreLote string, id string, estado string) {
 	// Guardar el estado en el hash del lote correspondiente
 	if err := rdb.HSet(context.Background(), nombreLote, id, estado).Err(); err != nil {
 		log.Printf("Error al guardar el estado en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
+	} else {
+		// Establecer un tiempo de expiración para la clave específica dentro del hash
+		// expiration := 3 * 30 * 24 * time.Hour // 3 meses en horas,en vez de time.Minute
+		err = rdb.Expire(context.Background(), nombreLote, 24*time.Hour).Err()
+		if err != nil {
+			log.Printf("Error al establecer el tiempo de expiración en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
+		}
 	}
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"github.com/iancoleman/orderedmap"
 )
 
 func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
@@ -40,6 +42,7 @@ func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
 	c.JSON(http.StatusOK, response)
 }
 
+// HandleUniqueStatusIddte maneja la solicitud para obtener estados IDDTE únicos
 func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
 	// Obtener el correlativo del lote de los parámetros de la solicitud
 	correlativo := c.Param("id")
@@ -60,15 +63,20 @@ func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
 		return
 	}
 
-	// Crear un slice para almacenar las claves
+	// Crear un mapa ordenado para almacenar los estados ordenados
+	estadosOrdenados := orderedmap.New()
+
+	// Crear un slice para almacenar las claves ordenadas
 	var claves []string
 	for clave := range estados {
 		claves = append(claves, clave)
 	}
 
-	// Definir una función para obtener el valor numérico de una clave
+	// Función para obtener el valor numérico de una clave
 	getNumero := func(clave string) int {
-		numeroStr := regexp.MustCompile(`\d+`).FindString(clave)
+		numeroStr := strings.TrimLeftFunc(clave, func(r rune) bool {
+			return !unicode.IsDigit(r) // Eliminar los caracteres no numéricos al principio
+		})
 		numero, _ := strconv.Atoi(numeroStr)
 		return numero
 	}
@@ -78,13 +86,12 @@ func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
 		return getNumero(claves[i]) < getNumero(claves[j])
 	})
 
-	// Crear un mapa ordenado para almacenar los estados
-	estadosOrdenados := make(map[string]string)
+	// Insertar los estados en el mapa ordenado
 	for _, clave := range claves {
-		estadosOrdenados[clave] = estados[clave]
+		estadosOrdenados.Set(clave, estados[clave])
 	}
 
-	// Devolver los estados del lote como respuesta JSON
 	response := gin.H{nombreLote: estadosOrdenados}
+	// Devolver los estados del lote como respuesta JSON
 	c.JSON(http.StatusOK, response)
 }

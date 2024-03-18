@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -31,12 +33,17 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	}
 
 	// Obtener el archivo Excel del formulario
-	file, _, err := c.Request.FormFile("excel")
+	file, fileHeader, err := c.Request.FormFile("excel")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No se pudo obtener el archivo Excel"})
 		return
 	}
 	defer file.Close()
+
+	if path.Ext(fileHeader.Filename) != ".xlsx" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo no es un archivo Excel"})
+		return
+	}
 
 	// Crear una carpeta temporal para almacenar los archivos recibidos
 	tempDir := "data/archivos_excel"
@@ -84,7 +91,8 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		if err != nil {
 			// Si la ejecución del script no fue exitosa, guardar un mensaje de error en Redis
 			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s", err, stderr.String())
-			err = rdb.HSet(context.Background(), "historial_archivos", nombreArchivo, errMsg).Err()
+			// Guardar el estado con expiración
+			err = rdb.Set(context.Background(), nombreArchivo, errMsg, 10*time.Minute).Err()
 			if err != nil {
 				log.Println("Error al guardar el estado en el historial de Redis:", err)
 			}
@@ -92,11 +100,11 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		}
 
 		successMessage := "Proceso de conversion exitoso"
-		err = rdb.HSet(context.Background(), "historial_archivos", nombreArchivo, successMessage).Err()
+		// Guardar el estado con expiración
+		err = rdb.Set(context.Background(), nombreArchivo, successMessage, 24*time.Hour).Err()
 		if err != nil {
 			log.Println("Error al guardar el estado en el historial de Redis:", err)
 		}
-
 		// Mover archivos JSON y CSV a carpetas específicas
 		responseJSONDir := "data/responseJSON"
 		if err := os.MkdirAll(responseJSONDir, 0755); err != nil {

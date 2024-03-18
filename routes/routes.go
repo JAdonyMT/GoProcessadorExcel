@@ -14,7 +14,8 @@ func SetupRouter(rdb *redis.Client) *gin.Engine {
 	// CORS configuration
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
-	config.AllowMethods = []string{"GET", "POST"}
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Access-Control-Allow-Origin", "tipoDte"}
+	config.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	r.Use(cors.New(config))
 
 	r.POST("/convert", func(c *gin.Context) {
