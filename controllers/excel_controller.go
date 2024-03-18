@@ -21,8 +21,11 @@ import (
 func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 
 	authToken := c.GetHeader("Authorization")
-	if authToken == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Token vacio o invalido"})
+
+	// Validar el token
+	if err := ValidateToken(authToken); err != nil {
+		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 

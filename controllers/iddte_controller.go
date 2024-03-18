@@ -15,6 +15,16 @@ import (
 )
 
 func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
+
+	token := c.GetHeader("Authorization")
+
+	// Validar el token
+	if err := ValidateToken(token); err != nil {
+		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Obtener todos los hashes que comienzan con "Lote_"
 	keys, err := rdb.Keys(context.Background(), "Lote_*").Result()
 	if err != nil {
