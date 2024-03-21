@@ -86,23 +86,40 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	// Capturar la salida estándar y la salida de error del proceso
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
 
-	// Ejecutar el proceso en segundo plano
+	dt := time.Now()
+
 	go func() {
-		err := cmd.Run()
+
+		err = cmd.Run()
 		if err != nil {
 			// Si la ejecución del script no fue exitosa, guardar un mensaje de error en Redis
 			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s", err, stderr.String())
+
+			logEntry := fmt.Sprintf("\n%s - Lote_%03d: Error en la conversión: %v. Detalles: ", dt.Format(time.Stamp), correlativo, err)
+			logWrite(logEntry, stdout.String())
+			logWrite("", "<===========================================>\n")
+
 			// Guardar el estado con expiración
-			err = rdb.Set(context.Background(), nombreArchivo, errMsg, 10*time.Minute).Err()
+			err = rdb.Set(context.Background(), nombreArchivo, errMsg, 24*time.Hour).Err()
 			if err != nil {
 				log.Println("Error al guardar el estado en el historial de Redis:", err)
 			}
 			return
 		}
 
-		successMessage := "Proceso de conversion exitoso"
+		successMessage := ""
+		if stdout.String() == "" {
+			successMessage = fmt.Sprintln("Proceso de conversion exitoso")
+			logEntry := fmt.Sprintf("\n%s - Lote: %03d - Proceso de conversión exitoso\n", dt.Format(time.Stamp), correlativo)
+			logWrite(logEntry, "")
+			logWrite("", "<==========================================>\n")
+		} else {
+			successMessage = fmt.Sprintf("Proceso de conversion con inconvenientes \n %v", stdout.String())
+			logEntry := fmt.Sprintf("\n%s - Lote: %03d - Proceso de conversión con inconvenientes\n", dt.Format(time.Stamp), correlativo)
+			logWrite(logEntry, stdout.String())
+			logWrite("", "<==========================================>\n")
+		}
 		// Guardar el estado con expiración
 		err = rdb.Set(context.Background(), nombreArchivo, successMessage, 24*time.Hour).Err()
 		if err != nil {
@@ -158,6 +175,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 
 		// Llamar a la función para procesar el archivo JSON recibido y enviarlo a la API
 		utils.ProcesarArchivoJSON(rutaArchivoJSON, tipoDte, authToken, rdb, correlativo)
+
 	}()
 }
 
@@ -182,4 +200,22 @@ func moveFile(fileName, destDir string) error {
 		return err
 	}
 	return nil
+}
+
+func logWrite(logentry string, stdout string) {
+	logFileName := "Lotelog.txt"
+	logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
+		return
+	}
+	defer logFile.Close()
+
+	if _, err := logFile.WriteString(logentry); err != nil {
+		log.Printf("Error al escribir en el archivo de registro: %v\n", err)
+	}
+
+	if _, err := logFile.WriteString(stdout); err != nil {
+		log.Printf("Error al escribir en el archivo de registro: %v\n", err)
+	}
 }
