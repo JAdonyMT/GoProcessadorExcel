@@ -54,6 +54,16 @@ func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
 
 // HandleUniqueStatusIddte maneja la solicitud para obtener estados IDDTE únicos
 func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
+
+	token := c.GetHeader("Authorization")
+
+	// Validar el token
+	if err := ValidateToken(token); err != nil {
+		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Obtener el correlativo del lote de los parámetros de la solicitud
 	correlativo := c.Param("id")
 

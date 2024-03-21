@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import psutil
 import os
@@ -8,11 +7,17 @@ import json
 from datetime import datetime
 import csv
 
-def get_memory_usage():
-    pid = os.getpid()
-    proc = psutil.Process(pid)
-    mem_info = proc.memory_info()
-    return mem_info.rss / (1024 *  1024)
+
+
+def convert_nan_to_none(value):
+    if isinstance(value, (float, np.float64)):
+        return None if np.isnan(value) else value
+    elif isinstance(value, (list, tuple, np.ndarray)):
+        return [convert_nan_to_none(v) for v in value]
+    elif isinstance(value, dict):
+        return {k: convert_nan_to_none(v) for k, v in value.items()}
+    else:
+        return value
 
 fc_map = {
     "dte":{
@@ -234,10 +239,8 @@ map_columns ={
 
 
 def main():
-    before_memory_usage = get_memory_usage()
-    start_cpu_usage = psutil.cpu_percent(interval=1)
-    start_time = time.time()
-
+    message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
+    
     archivo_excel = sys.argv[1]
     tipo_dte = sys.argv[2]
     try:
@@ -245,7 +248,7 @@ def main():
     except Exception as e:
         message.append(['', f"Error al cargar el archivo Excel: {e}", '', "Error"])
         print(f"Error al cargar el archivo Excel: {e}")
-        return
+        sys.exit(1)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
     map_dte = {
@@ -260,10 +263,19 @@ def main():
     map_columns_selected = map_columns
 
     detalles_por_id = {}
-    message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
     
+    dtype_dict_per_sheet = {}
+    for hoja_nombre in hojas_a_procesar:
+        hoja = hojas.get(hoja_nombre)
+        if hoja is not None:
+            if hoja_nombre in map_datatype_selected:
+                datatype_map = map_datatype_selected[hoja_nombre]
+                columnas_texto = [col for col, dtype in datatype_map.items() if dtype == str]
+            else:
+                columnas_texto = []
+            dtype_dict_per_sheet[hoja_nombre] = {col: str if col in columnas_texto else None for col in hoja.columns}        
 
-        # Procesamiento de todas las hojas
+    # Procesamiento de todas las hojas
     for hoja_nombre in hojas_a_procesar:
         try:
             hoja = hojas.get(hoja_nombre)
@@ -285,15 +297,8 @@ def main():
             else:
                 columnas_texto = []
 
-            # Crear un diccionario con los tipos de datos para cada columna
-            dtype_dict = {col: str if col in columnas_texto else None for col in hoja.columns}
-
-            try:
-                hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict)
-            except Exception as e:
-                message.append(['', f"Error al cargar la hoja '{hoja_nombre}' del archivo Excel: {e}", '', "Error"])
-                print(f"Error al cargar la hoja '{hoja_nombre}' del archivo Excel: {e}")
-                continue
+            # Aplicar los tipos de datos al cargar la hoja
+            hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict_per_sheet[hoja_nombre])
 
             try:
                 hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
@@ -306,7 +311,7 @@ def main():
                 try:
                     idte = row['IDDTE']
                     if pd.isnull(idte) or idte == '':
-                        print(f"La columna 'IDDTE' no puede estar vacia. Hoja: {hoja_nombre}    ")
+                        print(f"La columna 'IDDTE' no puede estar vacia. Hoja: {hoja_nombre}, fila {index + 2}")
                         raise ValueError("La columna 'IDDTE' no puede estar vacia.")
                     
                     detalle = detalles_por_id.get(idte, {})
@@ -324,9 +329,14 @@ def main():
                         # Procesar la columna "Tributos" específicamente
                         if "Tributos" in row.index:
                             tributos_value = row["Tributos"]
-                            # Convertir el valor de "Tributos" a una lista con un único elemento
-                            tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
-                            row["Tributos"] = tributos_list     
+                            # Verificar si hay múltiples tributos separados por comas
+                            if "," in str(tributos_value):
+                                # Dividir los tributos por comas y eliminar espacios en blanco
+                                tributos_list = [t.strip() for t in tributos_value.split(",")]
+                            else:
+                                # Si solo hay un tributo, colocarlo en una lista
+                                tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
+                            row["Tributos"] = tributos_list
                             
 
                         detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
@@ -340,7 +350,7 @@ def main():
 
         except Exception as e:
             message.append(['', f"Error al procesar la hoja '{hoja_nombre}': {e}", '', "Error"])
-            print(f"Error al procesar la hoja '{hoja_nombre}': {e}")
+            print(f"Error al procesar la hoja '{hoja_nombre}' en la fila {index + 2}")
             continue
     
     # Integrar map_selected en detalles_por_id
@@ -399,20 +409,12 @@ def main():
     # Convertir NaN a None para representarlos como null en el JSON
     for idte, detalle in detalles_por_id_str_keys.items():
         try:
-            for key, value in detalle.items():
-                if isinstance(value, dict):
-                    for k, v in value.items():
-                        if pd.isna(v):
-                            value[k] = None
-                elif isinstance(value, list):
-                    for record in value:
-                        for k, v in record.items():
-                            if pd.isna(v):
-                                record[k] = None
+            detalles_por_id_str_keys[idte] = convert_nan_to_none(detalle)
         except Exception as e:
             message.append([idte, f"Error al convertir valores a null para el IDDTE '{idte}': {e}", '', "Error"])
             print(f"Error al convertir valores a null para el IDDTE '{idte}': {e}")
-            
+
+                
     # Agregar datos del objeto "dte" directamente en la raíz
     for idte, detalle in detalles_por_id_str_keys.items():
         try:
@@ -447,7 +449,9 @@ def main():
             message.append([idte, f"Error al convertir tipos de datos para el IDDTE '{idte}': {e}", '', "Error"])
             print(f"Error al convertir tipos de datos para el IDDTE '{idte}': {e}")
 
+
     nombre_archivo = os.path.splitext(os.path.basename(archivo_excel))[0]
+    
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = nombre_archivo + '.json'
     json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None)
@@ -460,16 +464,6 @@ def main():
         writer = csv.writer(file)
         for e in message:
             writer.writerow(e)
-
-    elapsed_time = time.time() - start_time
-    end_cpu_usage = psutil.cpu_percent(interval=1)
-    cpu_usage_difference = end_cpu_usage - start_cpu_usage
-    after_memory_usage = get_memory_usage()
-    memory_usage_diff = after_memory_usage - before_memory_usage
-
-    print(f"Elapsed time: {elapsed_time} seconds")
-    print(f"CPU Usage Difference: {cpu_usage_difference}%")
-    print(f"Memory usage difference: {memory_usage_diff:.2f} MB")
 
 if __name__ == "__main__":
     main()
