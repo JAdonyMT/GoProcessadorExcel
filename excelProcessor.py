@@ -7,8 +7,6 @@ import json
 from datetime import datetime
 import csv
 
-
-
 def convert_nan_to_none(value):
     if isinstance(value, (float, np.float64)):
         return None if np.isnan(value) else value

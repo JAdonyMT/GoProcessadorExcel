@@ -28,7 +28,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		return
 	}
 
-	apiURL := os.Getenv("FACTURED_API")
+	apiURL := os.Getenv("LOCALHOST_API")
 	api := apiURL + dteApi
 
 	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)
