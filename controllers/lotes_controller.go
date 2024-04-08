@@ -10,6 +10,16 @@ import (
 )
 
 func HandleStatusConsulta(c *gin.Context, rdb *redis.Client) {
+
+	token := c.GetHeader("Authorization")
+
+	// Validar el token
+	if err := ValidateToken(token); err != nil {
+		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Obtener todos los estados de los archivos guardados en Redis
 	estados, err := rdb.Keys(context.Background(), "*").Result()
 	if err != nil {

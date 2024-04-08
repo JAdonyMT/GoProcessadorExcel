@@ -28,7 +28,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		return
 	}
 
-	apiURL := os.Getenv("FACTURED_API")
+	apiURL := os.Getenv("LOCALHOST_API")
 	api := apiURL + dteApi
 
 	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)
@@ -96,7 +96,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, estadoRespuesta)
 
 		// Crear el archivo de registro
-		logFileName := "log.txt"
+		logFileName := "IDDTElog.txt"
 		logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
@@ -104,9 +104,12 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		}
 		defer logFile.Close()
 
+		dt := time.Now()
+
 		// Escribir en el archivo de registro
-		logEntry := fmt.Sprintf("IDDTE: %s - Código de estado de la respuesta: %d %s\n", "IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
-		logEntry += fmt.Sprintf("IDDTE: %s - Mensaje de la respuesta: %s\n", "IDDTE-"+id, string(cuerpoRespuesta))
+		logEntry := fmt.Sprintf("%s - %s - Código de estado de la respuesta: %d %s\n", dt.Format(time.Stamp), "IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
+		logEntry += fmt.Sprintf("%s - %s - Mensaje de la respuesta: %s\n", dt.Format(time.Stamp), "IDDTE-"+id, string(cuerpoRespuesta))
+		logEntry += ("\n<------------------------------------------------------------->\n")
 		if _, err := logFile.WriteString(logEntry); err != nil {
 			log.Printf("Error al escribir en el archivo de registro: %v\n", err)
 			continue
