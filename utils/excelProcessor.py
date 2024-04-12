@@ -6,6 +6,7 @@ import pandas as pd
 import json
 from datetime import datetime
 import csv
+from maps import *
 
 def convert_nan_to_none(value):
     if isinstance(value, (float, np.float64)):
@@ -16,224 +17,6 @@ def convert_nan_to_none(value):
         return {k: convert_nan_to_none(v) for k, v in value.items()}
     else:
         return value
-
-fc_map = {
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None
-    },
-    "Identificacion":{
-        "TipoDte": "01"
-    },
-    "Receptor":{
-        "Nrc": None
-    },
-    "Detalles":{
-        "Descuento": 0,
-        "Codigo": None,
-        "CodGenDocRelacionado": None,
-        "CodigoTributo": None
-    },
-    "Resumen":{
-        "DescuentoNoSujeto": 0,
-        "DescuentoGravado": 0,
-        "RetencionRenta": False,
-        "DescuentoExento": 0
-    },
-    "DocumentosRelacionados":[],
-    "OtrosDocumentosRelacionados":[],
-    "Apendices":[]
-}
-
-ccf_map ={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None,
-        "Rechazado": False
-    },
-    "Identificacion":{
-        "TipoDte": "03"
-    },
-    "Resumen":{
-        "DescuentoNoSujeto": 0,
-        "DescuentoGravado":	0,
-        "DescuentoExento":	0,
-        "RetencionRenta": False
-    },
-    "DocumentosRelacionados":[],
-    "OtrosDocumentosRelacionados":[],
-    "Apendices":[]
-}
-
-fex_map ={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None
-    },
-    "Identificacion":{
-        "TipoDte": "11"
-    },
-    "Resumen": {
-        "Seguro": 0.0,
-        "Flete": 0.0,
-        "CodigoIncoterm": None,
-        "DescripcionIncoterm": None,
-        "Observaciones": None
-    },
-    "OtrosDocumentosRelacionados":[],
-    "Apendices": []
-}
-
-nc_map ={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None
-    },
-    "Identificacion":{
-        "TipoDte": "05"
-    },
-    "Resumen":{
-        "DescuentoNoSujeto": 0,
-        "DescuentoGravado":	0,
-        "DescuentoExento":	0,
-        "RetencionRenta": False
-    },
-    "Apendices":[]
-}
-
-type_map = {
-    "dte": {
-        "CodigoGeneracionContingencia": str,
-        "NumeroIntentos": int,
-        "VentaTercero": bool,
-        "NitTercero": str,
-        "NombreTercero": str,
-        "CodigoCondicionOperacion": str,
-        "Rechazado": bool
-    },
-    "Identificacion": {
-        "TipoDte": str,
-        "CodigoEstablecimientoMH": str,
-        "Moneda": str
-    },
-    "Receptor": {
-        "TipoDocumentoIdentificacion": str,
-        "NumeroDocumentoIdentificacion": str,
-        "CodigoDepartamento": str,
-        "CodigoMunicipio": str,
-        "Direccion": str,    
-        "Nrc": str,
-        "CodigoActividadEconomica": str,
-        "DescripcionActividadEconomica": str,
-        "Correo": str,
-        "Telefono": str,
-        "Nit": str,
-        "Nombres": str,
-        "CodigoTipoPersona": int,
-        "DireccionComplemento": str,
-        "CodigoPais": str,
-        "NombrePais": str,
-    },
-    "Detalles": {
-        "TipoMonto": int,
-        "CodigoTipoItem": int,
-        "Cantidad": float,
-        "Codigo": str,
-        "CodGenDocRelacionado": str,
-        "CodigoTributo": str,
-        "CodigoUnidadMedida": str,
-        "Descripcion": str,
-        "Tributos": str,
-        "PrecioUnitario": float,
-        "IvaItem": float,
-        "Descuento": float,
-        "Subtotal": float,
-    },
-    "Resumen": {
-        "DescuentoNoSujeto": float,
-        "DescuentoGravado":	float,
-        "DescuentoExento":	float,
-        "RetencionRenta": bool,
-        "CodigoRetencionIva": str,
-        "PercepcionIva": bool,
-        "Seguro": float,
-        "Flete": float,
-        "CodigoIncoterm": str,
-        "DescripcionIncoterm": str,
-        "Observaciones": str
-    },
-    "Extension": {
-        "NombreEntrega": str,
-        "DocumentoEntrega": str,
-        "NombreRecibe": str,
-        "DocumentoRecibe": str,
-        "Observaciones": str,
-        "PlacaVehiculo": str
-    },
-    "DocumentosRelacionados": {
-        "TipoDte": str,
-        "CodigoGeneracion": str,
-        "CodigoTipoGeneracion": int,
-        "FechaEmision": str
-    }
-    # "OtrosDocumentosRelacionados": [],
-    # "Apendices": []
-}
-
-map_columns ={
-    "dte": {
-        "CodigoCondicionOperacion": "CodigoCondicionOperacion",
-    },
-    "Identificacion": {
-        "CodigoEstablecimientoMH": "CodigoEstablecimientoMH",
-    },
-    "Receptor": {
-        "TipoDocumentoIdentificacion": "TipoDocumentoIdentificacion",
-        "NumeroDocumentoIdentificacion": "NumeroDocumentoIdentificacion",
-        "CodigoDepartamento": "CodigoDepartamento",
-        "CodigoMunicipio": "CodigoMunicipio",
-        "CodigoActividadEconomica": "CodigoActividadEconomica",
-        "DescripcionActividadEconomica": "DescripcionActividadEconomica",
-    },
-    "Detalles": {
-        "TipoMonto": "TipoMonto",
-        "CodigoTipoItem": "CodigoTipoItem",
-        "CodGenDocRelacionado": "CodGenDocRelacionado",
-        "CodigoTributo": "CodigoTributo",
-        "CodigoUnidadMedida": "CodigoUnidadMedida",
-        "PrecioUnitario": "PrecioUnitario",
-        "IvaItem": "IvaItem",
-    },
-    "Resumen": {
-        "CodigoRetencionIva": "CodigoRetencionIva",
-    },
-    "Extension": {
-        "NombreEntrega": "NombreEntrega",
-        "DocumentoEntrega": "DocumentoEntrega",
-        "NombreRecibe": "NombreRecibe",
-        "DocumentoRecibe": "DocumentoRecibe",
-        "Observaciones": "Observaciones",
-        "PlacaVehiculo": "PlacaVehiculo"
-    },
-    "DocumentosRelacionados": {
-        "TipoDte": "TipoDte",
-        "CodigoGeneracion": "CodigoGeneracion",
-        "CodigoTipoGeneracion": "CodigoTipoGeneracion",
-        "FechaEmision": "FechaEmision"
-    }
-}
 
 
 def main():
@@ -253,12 +36,13 @@ def main():
         "01": fc_map,
         "03": ccf_map,
         "11": fex_map,
-        "05": nc_map
+        "05": nc_map,
+        "14": fse_map,
+        "cancel": {}
     }
 
     map_selected = map_dte.get(tipo_dte)
     map_datatype_selected = type_map
-    map_columns_selected = map_columns
 
     detalles_por_id = {}
     
@@ -297,13 +81,6 @@ def main():
 
             # Aplicar los tipos de datos al cargar la hoja
             hoja = pd.read_excel(archivo_excel, sheet_name=hoja_nombre, dtype=dtype_dict_per_sheet[hoja_nombre])
-
-            try:
-                hoja = hoja.rename(columns=map_columns_selected.get(hoja_nombre, {}))  # Renombrar las columnas según el mapa de la hoja
-            except Exception as e:
-                message.append(['', f"Error al renombrar las columnas de la hoja '{hoja_nombre}': {e}", '', "Error"])
-                print(f"Error al renombrar las columnas de la hoja '{hoja_nombre}': {e}")
-                continue
             
             for index, row in hoja.iterrows():  
                 try:
@@ -323,7 +100,7 @@ def main():
                     else:
                         if hoja_nombre not in detalles_por_id[idte]:
                             detalles_por_id[idte][hoja_nombre] = [] 
-                            
+                                                        
                         # Procesar la columna "Tributos" específicamente
                         if "Tributos" in row.index:
                             tributos_value = row["Tributos"]
@@ -351,30 +128,31 @@ def main():
             print(f"Error al procesar la hoja '{hoja_nombre}' en la fila {index + 2}")
             continue
     
-    # Integrar map_selected en detalles_por_id
-    for idte, detalle in detalles_por_id.items():
-        try:
-            for hoja_nombre, datos_fijos in map_selected.items():
-                if hoja_nombre != "dte":
-                    if idte not in detalles_por_id:
-                        detalles_por_id[idte] = {}
+    if map_selected != "cancel":
+        # Integrar map_selected en detalles_por_id
+        for idte, detalle in detalles_por_id.items():
+            try:
+                for hoja_nombre, datos_fijos in map_selected.items():
+                    if hoja_nombre != "dte":
+                        if idte not in detalles_por_id:
+                            detalles_por_id[idte] = {}
 
-                    if hoja_nombre not in detalles_por_id[idte]:
-                        if isinstance(datos_fijos, dict):
-                            detalles_por_id[idte][hoja_nombre] = [datos_fijos.copy()]  # Añadir datos fijos como lista
-                        elif isinstance(datos_fijos, list):
-                            detalles_por_id[idte][hoja_nombre] = [fijo.copy() for fijo in datos_fijos]  # Añadir datos fijos como lista
-                    else:
-                        if isinstance(datos_fijos, dict):
-                            for item in detalles_por_id[idte][hoja_nombre]:
-                                item.update(datos_fijos.copy())
-                        elif isinstance(datos_fijos, list):
-                            for fijo in datos_fijos:
-                                detalles_por_id[idte][hoja_nombre].append(fijo.copy())
-        except Exception as e:
-            message.append([idte, f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}", '', "Error"])
-            print(f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}")
-                                
+                        if hoja_nombre not in detalles_por_id[idte]:
+                            if isinstance(datos_fijos, dict):
+                                detalles_por_id[idte][hoja_nombre] = [datos_fijos.copy()]  # Añadir datos fijos como lista
+                            elif isinstance(datos_fijos, list):
+                                detalles_por_id[idte][hoja_nombre] = [fijo.copy() for fijo in datos_fijos]  # Añadir datos fijos como lista
+                        else:
+                            if isinstance(datos_fijos, dict):
+                                for item in detalles_por_id[idte][hoja_nombre]:
+                                    item.update(datos_fijos.copy())
+                            elif isinstance(datos_fijos, list):
+                                for fijo in datos_fijos:
+                                    detalles_por_id[idte][hoja_nombre].append(fijo.copy())
+            except Exception as e:
+                message.append([idte, f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}", '', "Error"])
+                print(f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}")
+                                    
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
         try:
@@ -403,6 +181,8 @@ def main():
     except Exception as e:
         message.append(['', f"Error al convertir las claves a cadena de texto: {e}", '', "Error"])
         print(f"Error al convertir las claves a cadena de texto: {e}")
+        
+    
 
     # Convertir NaN a None para representarlos como null en el JSON
     for idte, detalle in detalles_por_id_str_keys.items():
@@ -452,8 +232,9 @@ def main():
     
     # Generar un único archivo JSON al final del procesamiento
     nombre_json = nombre_archivo + '.json'
-    json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None)
-    with open(nombre_json, "w") as json_file:
+    # Usar ensure_ascii=False y especificar utf-8 para evitar la codificación de caracteres especiales
+    json_data = json.dumps(detalles_por_id_str_keys, default=lambda x: x if x is not pd.NA else None, ensure_ascii=False)
+    with open(nombre_json, "w", encoding="utf-8") as json_file:
         json_file.write(json_data)
 
     ahora = datetime.now()
