@@ -15,10 +15,12 @@ import (
 )
 
 var apiMap = map[string]string{
-	"01": "/dte/fc",
-	"03": "/dte/ccf",
-	"11": "/dte/fex",
-	"05": "/dte/ncnd",
+	"01":     "/dte/fc",
+	"03":     "/dte/ccf",
+	"11":     "/dte/fex",
+	"05":     "/dte/ncnd",
+	"14":     "/dte/fse",
+	"cancel": "/dte/cancel",
 }
 
 func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, rdb *redis.Client, correlativo int) {

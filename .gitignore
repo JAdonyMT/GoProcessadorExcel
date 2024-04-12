@@ -1,3 +1,5 @@
 .env
 IDDTElog.txt
 Lotelog.txt
+
+./utils/_pycache_ 

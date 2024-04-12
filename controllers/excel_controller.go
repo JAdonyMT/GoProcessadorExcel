@@ -81,7 +81,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	c.JSON(http.StatusOK, gin.H{"message": "El archivo se está procesando"})
 
 	// Llamar al script de Python para procesar el archivo Excel
-	cmd := exec.Command("python", "excelProcessor.py", tempFilePath, tipoDte)
+	cmd := exec.Command("python", "./utils/excelProcessor.py", tempFilePath, tipoDte)
 
 	// Capturar la salida estándar y la salida de error del proceso
 	var stdout, stderr bytes.Buffer
