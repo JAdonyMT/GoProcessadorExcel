@@ -25,26 +25,67 @@ func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
 		return
 	}
 
-	// Obtener todos los hashes que comienzan con "Lote_"
+	// Obtener todas las claves que coinciden con el patrón "Lote_*"
 	keys, err := rdb.Keys(context.Background(), "Lote_*").Result()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los estados de los archivos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener las claves de los archivos"})
 		return
 	}
 
 	// Crear un mapa para almacenar los resultados
-	historial := make(map[string]map[string]string)
+	historial := make(map[string]*orderedmap.OrderedMap)
 
-	// Recorrer cada clave encontrada
+	// Filtrar las claves para quedarnos solo con aquellas que corresponden a hashes
+	hashKeys := make([]string, 0)
 	for _, key := range keys {
-		// Obtener el hash correspondiente
+		keyType, err := rdb.Type(context.Background(), key).Result()
+		if err != nil {
+			// Manejar el error
+			continue
+		}
+		if keyType == "hash" {
+			hashKeys = append(hashKeys, key)
+		}
+	}
+
+	// Aplicar HGetAll solo a las claves que corresponden a hashes
+	for _, key := range hashKeys {
 		estados, err := rdb.HGetAll(context.Background(), key).Result()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los estados de los archivos"})
-			return
+			// Manejar el error
+			continue
 		}
-		// Agregar el hash al mapa de historial
-		historial[key] = estados
+
+		// Crear un mapa ordenado para almacenar los estados ordenados
+		estadosOrdenados := orderedmap.New()
+
+		// Crear un slice para almacenar las claves ordenadas
+		var claves []string
+		for clave := range estados {
+			claves = append(claves, clave)
+		}
+
+		// Función para obtener el valor numérico de una clave
+		getNumero := func(clave string) int {
+			numeroStr := strings.TrimLeftFunc(clave, func(r rune) bool {
+				return !unicode.IsDigit(r) // Eliminar los caracteres no numéricos al principio
+			})
+			numero, _ := strconv.Atoi(numeroStr)
+			return numero
+		}
+
+		// Ordenar las claves basadas en sus valores numéricos
+		sort.Slice(claves, func(i, j int) bool {
+			return getNumero(claves[i]) < getNumero(claves[j])
+		})
+
+		// Insertar los estados en el mapa ordenado
+		for _, clave := range claves {
+			estadosOrdenados.Set(clave, estados[clave])
+		}
+
+		// Agregar el mapa ordenado al historial
+		historial[key] = estadosOrdenados
 	}
 
 	// Devolver el historial como respuesta JSON
