@@ -18,7 +18,43 @@ def convert_nan_to_none(value):
     else:
         return value
 
+# Función para procesar el tipo de documento de identificación y su número asociado
+def procesar_documento_identificacion(row):
+    if "TipoDocumentoIdentificacion" in row.index:
+        tipo_documento_identificacion = row["TipoDocumentoIdentificacion"]
+        if tipo_documento_identificacion in ("13", "36"):
+            if "NumeroDocumentoIdentificacion" in row.index:
+                numero_documento_identificacion = row["NumeroDocumentoIdentificacion"]
+                if isinstance(numero_documento_identificacion, str):
+                    row["NumeroDocumentoIdentificacion"] = numero_documento_identificacion.replace("-", "")
 
+def procesar_documento_identificacion_resumen(row):
+    if "TipoDocIdentResponsable" in row.index:
+        tipo_documento_identificacion = row["TipoDocIdentResponsable"]
+        if tipo_documento_identificacion in ("13", "36"):
+            if "NumDocIdentResponsable" in row.index:
+                numero_documento_identificacion = row["NumDocIdentResponsable"]
+                if isinstance(numero_documento_identificacion, str):
+                    row["NumDocIdentResponsable"] = numero_documento_identificacion.replace("-", "")        
+    
+    if "TipoDocIdentSolicita" in row.index:
+        tipo_documento_identificacion = row["TipoDocIdentSolicita"]
+        if tipo_documento_identificacion in ("13", "36"):
+            if "NumDocIdentSolicita" in row.index:
+                numero_documento_identificacion = row["NumDocIdentSolicita"]
+                if isinstance(numero_documento_identificacion, str):
+                    row["NumDocIdentSolicita"] = numero_documento_identificacion.replace("-", "")        
+    
+def procesar_documento_identificacion_extension(row):
+    if "DocumentoEntrega" in row.index:
+        documento_entrega = row["DocumentoEntrega"]
+        if isinstance(documento_entrega, str):
+            row["DocumentoEntrega"] = documento_entrega.replace("-", "")
+    if "DocumentoRecibe" in row.index:
+        documento_recibe = row["DocumentoRecibe"]
+        if isinstance(documento_recibe, str):
+            row["DocumentoRecibe"] = documento_recibe.replace("-", "")
+        
 def main():
     message = [['IDDTE', 'ERROR', 'FECHA', 'STATUS']]
     
@@ -113,6 +149,22 @@ def main():
                                 tributos_list = [str(tributos_value)] if not pd.isna(tributos_value) else []
                             row["Tributos"] = tributos_list
                             
+                        if "Nrc" in row.index:
+                            nrc = row["Nrc"]
+                            if isinstance(nrc, str):
+                                row["Nrc"] = nrc.replace("-", "")
+                        
+                        procesar_documento_identificacion(row)
+                        
+                        if "Nit" in row.index:
+                            nit = row["Nit"]
+                            if isinstance(nit, str):
+                                row["Nit"] = nit.replace("-", "")
+
+                        procesar_documento_identificacion_resumen(row)
+
+                        procesar_documento_identificacion_extension(row)
+                    
 
                         detalles_por_id[idte][hoja_nombre].append(row.drop(labels=['IDDTE']).to_dict())
 
@@ -151,7 +203,7 @@ def main():
                                     detalles_por_id[idte][hoja_nombre].append(fijo.copy())
             except Exception as e:
                 message.append([idte, f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}", '', "Error"])
-                print(f"Error al integrar map_selected en detalles_por_id para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}")
+                print(f"Error al integrar el mapa de datos para el IDDTE '{idte}' y la hoja '{hoja_nombre}': {e}")
                                     
     # Convertir la hoja en objeto si tiene solo una fila asociada
     for idte, detalle in detalles_por_id.items():
