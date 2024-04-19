@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"GoProcesadorExcel/authentication"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -24,6 +25,9 @@ var apiMap = map[string]string{
 }
 
 func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, rdb *redis.Client, correlativo int) {
+
+	empid, _ := authentication.ValidateToken(authToken)
+
 	dteApi, ok := apiMap[tipoDte]
 	if !ok {
 		log.Printf("Tipo de DTE no válido: %s\n", tipoDte)
@@ -33,7 +37,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 	apiURL := os.Getenv("LOCALHOST_API")
 	api := apiURL + dteApi
 
-	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)
+	nombreLote := fmt.Sprintf("%s_Lote_%03d", empid, correlativo)
 
 	// Leer el archivo JSON
 	contenido, err := ioutil.ReadFile(rutaEntrada)
@@ -109,8 +113,8 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		dt := time.Now()
 
 		// Escribir en el archivo de registro
-		logEntry := fmt.Sprintf("%s - %s - Código de estado de la respuesta: %d %s\n", dt.Format(time.Stamp), "IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
-		logEntry += fmt.Sprintf("%s - %s - Mensaje de la respuesta: %s\n", dt.Format(time.Stamp), "IDDTE-"+id, string(cuerpoRespuesta))
+		logEntry := fmt.Sprintf("%s - %s - Código de estado de la respuesta: %d %s\n", dt.Format(time.Stamp), empid+"_IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
+		logEntry += fmt.Sprintf("%s - %s - Mensaje de la respuesta: %s\n", dt.Format(time.Stamp), empid+"_IDDTE-"+id, string(cuerpoRespuesta))
 		logEntry += ("\n<------------------------------------------------------------->\n")
 		if _, err := logFile.WriteString(logEntry); err != nil {
 			log.Printf("Error al escribir en el archivo de registro: %v\n", err)
