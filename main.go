@@ -4,7 +4,6 @@ import (
 	"GoProcesadorExcel/routes"
 	"context"
 	"log"
-	"os"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
@@ -18,12 +17,12 @@ func main() {
 		log.Fatal("Error al cargar archivo .env")
 	}
 
-	redisUrl := os.Getenv("REDIS_URL")
-	redisKey := os.Getenv("REDIS_PSW")
+	// redisUrl := os.Getenv("REDIS_URL")
+	// redisKey := os.Getenv("REDIS_PSW")
 	// Configurar la conexión a Redis
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     redisUrl,
-		Password: redisKey,
+		Addr:     "localhost:6379",
+		Password: "",
 		DB:       0,
 	})
 

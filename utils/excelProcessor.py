@@ -71,8 +71,8 @@ def main():
     map_dte = {
         "01": fc_map,
         "03": ccf_map,
-        "11": fex_map,
         "05": nc_map,
+        "11": fex_map,
         "14": fse_map,
         "cancel": {}
     }
@@ -209,7 +209,7 @@ def main():
     for idte, detalle in detalles_por_id.items():
         try:
             for hoja_nombre, data in detalle.items():
-                if hoja_nombre in ["Detalles", "DocumentosRelacionados"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
+                if hoja_nombre in ["Detalles", "DocumentosRelacionados", "Apendices"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
                     # Asegurar que la hoja siempre sea una lista
                     if not isinstance(data, list):
                         detalles_por_id[idte][hoja_nombre] = [data]
