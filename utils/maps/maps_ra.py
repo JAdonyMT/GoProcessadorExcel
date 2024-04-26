@@ -1,5 +1,4 @@
-
-
+# Description: Maps for REDABIERTA 
 
 fc_map = {
     "dte":{
@@ -32,83 +31,6 @@ fc_map = {
     "Apendices":[]
 }
 
-ccf_map ={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None,
-        "Rechazado": False
-    },
-    "Identificacion":{
-        "TipoDte": "03"
-    },
-    "Resumen":{
-        "DescuentoNoSujeto": 0,
-        "DescuentoGravado":	0,
-        "DescuentoExento":	0,
-        "RetencionRenta": False
-    },
-    "DocumentosRelacionados":[],
-    "OtrosDocumentosRelacionados":[],
-    "Apendices":[]
-}
-
-fex_map ={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None
-    },
-    "Identificacion":{
-        "TipoDte": "11"
-    },
-    "Resumen": {
-        "Seguro": 0.0,
-        "Flete": 0.0,
-        "CodigoIncoterm": None,
-        "DescripcionIncoterm": None,
-        "Observaciones": None
-    },
-    "OtrosDocumentosRelacionados":[],
-    "Apendices": []
-}
-
-nc_map ={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "VentaTercero": False,
-        "NitTercero": None,
-        "NombreTercero": None
-    },
-    "Identificacion":{
-        "TipoDte": "05"
-    },
-    "Resumen":{
-        "DescuentoNoSujeto": 0,
-        "DescuentoGravado":	0,
-        "DescuentoExento":	0,
-        "RetencionRenta": False
-    },
-    "Apendices":[]
-}
-
-fse_map={
-    "dte":{
-        "CodigoGeneracionContingencia": None,
-        "NumeroIntentos": 0,
-        "Rechazado": False,
-        "Observaciones": ""
-    },
-    "Identificacion":{
-        "TipoDte": "14"
-    },
-    "Apendices":[]
-}
 
 type_map = {
     "dte": {
@@ -203,50 +125,5 @@ type_map = {
         "CorreoCliente": str,
         "TelefonoCliente": str,
     }
-    # "OtrosDocumentosRelacionados": [],
-    # "Apendices": []
 }
-
-# map_columns ={
-#     "dte": {
-#         "CodigoCondicionOperacion": "CodigoCondicionOperacion",
-#     },
-#     "Identificacion": {
-#         "CodigoEstablecimientoMH": "CodigoEstablecimientoMH",
-#     },
-#     "Receptor": {
-#         "TipoDocumentoIdentificacion": "TipoDocumentoIdentificacion",
-#         "NumeroDocumentoIdentificacion": "NumeroDocumentoIdentificacion",
-#         "CodigoDepartamento": "CodigoDepartamento",
-#         "CodigoMunicipio": "CodigoMunicipio",
-#         "CodigoActividadEconomica": "CodigoActividadEconomica",
-#         "DescripcionActividadEconomica": "DescripcionActividadEconomica",
-#     },
-#     "Detalles": {
-#         "TipoMonto": "TipoMonto",
-#         "CodigoTipoItem": "CodigoTipoItem",
-#         "CodGenDocRelacionado": "CodGenDocRelacionado",
-#         "CodigoTributo": "CodigoTributo",
-#         "CodigoUnidadMedida": "CodigoUnidadMedida",
-#         "PrecioUnitario": "PrecioUnitario",
-#         "IvaItem": "IvaItem",
-#     },
-#     "Resumen": {
-#         "CodigoRetencionIva": "CodigoRetencionIva",
-#     },
-#     "Extension": {
-#         "NombreEntrega": "NombreEntrega",
-#         "DocumentoEntrega": "DocumentoEntrega",
-#         "NombreRecibe": "NombreRecibe",
-#         "DocumentoRecibe": "DocumentoRecibe",
-#         "Observaciones": "Observaciones",
-#         "PlacaVehiculo": "PlacaVehiculo"
-#     },
-#     "DocumentosRelacionados": {
-#         "TipoDte": "TipoDte",
-#         "CodigoGeneracion": "CodigoGeneracion",
-#         "CodigoTipoGeneracion": "CodigoTipoGeneracion",
-#         "FechaEmision": "FechaEmision"
-#     }
-# }
 
