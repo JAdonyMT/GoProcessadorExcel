@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"GoProcesadorExcel/authentication"
 	"GoProcesadorExcel/utils"
 	"bytes"
 	"context"
@@ -23,7 +24,9 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	authToken := c.GetHeader("Authorization")
 
 	// Validar el token
-	if err := ValidateToken(authToken); err != nil {
+	empid, err := authentication.ValidateToken(authToken)
+
+	if err != nil {
 		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -56,12 +59,12 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	}
 
 	// Generar el nombre del archivo con el formato Lote_{correlativo}
-	correlativo, err := generateCorrelativo(rdb)
+	correlativo, err := generateCorrelativo(rdb, empid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar el correlativo"})
 		return
 	}
-	nombreArchivo := fmt.Sprintf("Lote_%03d.xlsx", correlativo)
+	nombreArchivo := fmt.Sprintf("%s_Lote_%03d.xlsx", empid, correlativo)
 	tempFilePath := filepath.Join(tempDir, nombreArchivo)
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
@@ -81,7 +84,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	c.JSON(http.StatusOK, gin.H{"message": "El archivo se está procesando"})
 
 	// Llamar al script de Python para procesar el archivo Excel
-	cmd := exec.Command("python", "./utils/excelProcessor.py", tempFilePath, tipoDte)
+	cmd := exec.Command("python", "./utils/excelProcessor.py", tempFilePath, tipoDte, empid)
 
 	// Capturar la salida estándar y la salida de error del proceso
 	var stdout, stderr bytes.Buffer
@@ -96,7 +99,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 			// Si la ejecución del script no fue exitosa, guardar un mensaje de error en Redis
 			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s", err, stderr.String())
 
-			logEntry := fmt.Sprintf("\n%s - Lote_%03d: Error en la conversión: %v. Detalles: ", dt.Format(time.Stamp), correlativo, err)
+			logEntry := fmt.Sprintf("\n%s - %s_Lote_%03d: Error en la conversión: %v. Detalles: ", dt.Format(time.Stamp), empid, correlativo, err)
 			logWrite(logEntry, stdout.String())
 			logWrite("", "<===========================================>\n")
 
@@ -111,12 +114,12 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		successMessage := ""
 		if stdout.String() == "" {
 			successMessage = fmt.Sprintln("Proceso de conversion exitoso")
-			logEntry := fmt.Sprintf("\n%s - Lote: %03d - Proceso de conversión exitoso\n", dt.Format(time.Stamp), correlativo)
+			logEntry := fmt.Sprintf("\n%s - %s_Lote: %03d - Proceso de conversión exitoso\n", dt.Format(time.Stamp), empid, correlativo)
 			logWrite(logEntry, "")
 			logWrite("", "<==========================================>\n")
 		} else {
 			successMessage = fmt.Sprintf("Proceso de conversion con inconvenientes \n %v", stdout.String())
-			logEntry := fmt.Sprintf("\n%s - Lote: %03d - Proceso de conversión con inconvenientes\n", dt.Format(time.Stamp), correlativo)
+			logEntry := fmt.Sprintf("\n%s - %s_Lote: %03d - Proceso de conversión con inconvenientes\n", dt.Format(time.Stamp), empid, correlativo)
 			logWrite(logEntry, stdout.String())
 			logWrite("", "<==========================================>\n")
 		}
@@ -168,7 +171,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 			}
 		}
 		// Obtener el nombre del archivo JSON basado en el correlativo
-		nombreArchivoJSON := fmt.Sprintf("Lote_%03d.json", correlativo)
+		nombreArchivoJSON := fmt.Sprintf("%s_Lote_%03d.json", empid, correlativo)
 
 		// Construir la ruta completa del archivo JSON
 		rutaArchivoJSON := filepath.Join(responseJSONDir, nombreArchivoJSON)
@@ -179,9 +182,9 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 	}()
 }
 
-func generateCorrelativo(rdb *redis.Client) (int, error) {
+func generateCorrelativo(rdb *redis.Client, empid string) (int, error) {
 	// Incrementar el contador en Redis
-	val, err := rdb.Incr(context.Background(), "contador_lotes").Result()
+	val, err := rdb.Incr(context.Background(), empid+"_contador_lotes").Result()
 	if err != nil {
 		return 0, err
 	}
