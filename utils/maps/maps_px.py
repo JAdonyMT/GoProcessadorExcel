@@ -1,4 +1,4 @@
-
+# Description: Maps for  PuntoXpress 
 
 
 fc_map = {
@@ -249,4 +249,3 @@ type_map = {
 #         "FechaEmision": "FechaEmision"
 #     }
 # }
-

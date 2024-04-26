@@ -6,7 +6,18 @@ import pandas as pd
 import json
 from datetime import datetime
 import csv
-from maps import *
+
+
+# Obtener el ID de usuario como argumento
+id_emp = sys.argv[3]
+
+client_maps = {}
+if id_emp == "26":
+    from maps.maps_px import *
+    client_maps = locals()
+elif id_emp == "2":
+    from maps.maps_ra import *
+    client_maps = locals()
 
 def convert_nan_to_none(value):
     if isinstance(value, (float, np.float64)):
@@ -68,12 +79,13 @@ def main():
         sys.exit(1)
     hojas_a_procesar = list(hojas.keys())  # Obtener automáticamente los nombres de las hojas
 
+    # Definir los mapas de datos fijos según el tipo de DTE y la empresa
     map_dte = {
-        "01": fc_map,
-        "03": ccf_map,
-        "05": nc_map,
-        "11": fex_map,
-        "14": fse_map,
+        "01": client_maps.get('fc_map', {}),  # Obtener el mapa si está definido en el módulo del usuario, o un diccionario vacío {}
+        "03": client_maps.get('ccf_map', {}),
+        "11": client_maps.get('fex_map', {}),
+        "05": client_maps.get('nc_map', {}),
+        "14": client_maps.get('fse_map', {}),
         "cancel": {}
     }
 
@@ -209,7 +221,7 @@ def main():
     for idte, detalle in detalles_por_id.items():
         try:
             for hoja_nombre, data in detalle.items():
-                if hoja_nombre in ["Detalles", "DocumentosRelacionados", "Apendices"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
+                if hoja_nombre in ["Detalles", "DocumentosRelacionados"]:  # Verificar si es "Detalles" o "DocumentosRelacionados"
                     # Asegurar que la hoja siempre sea una lista
                     if not isinstance(data, list):
                         detalles_por_id[idte][hoja_nombre] = [data]

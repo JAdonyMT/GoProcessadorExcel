@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"GoProcesadorExcel/authentication"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -18,14 +19,23 @@ import (
 var apiMap = map[string]string{
 	"01":     "/dte/fc",
 	"03":     "/dte/ccf",
-	"11":     "/dte/fex",
+	"04":     "/dte/nr",
 	"05":     "/dte/ncnd",
+	"06":     "/dte/ncnd",
+	"07":     "/dte/cr",
+	"08":     "/dte/cl",
+	"09":     "/dte/dcl",
+	"11":     "/dte/fex",
 	"14":     "/dte/fse",
+	"15":     "/dte/cd",
 	"cancel": "/dte/cancel",
 }
 
 // ProcesarArchivoJSON procesa un archivo JSON enviando sus estructuras a una API y registrando su estado en Redis
 func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, rdb *redis.Client, correlativo int) {
+
+	empid, _ := authentication.ValidateToken(authToken)
+
 	// Paso 1: Obtener la API correspondiente al tipo de DTE
 	dteApi, ok := apiMap[tipoDte]
 	if !ok {
@@ -34,11 +44,11 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 	}
 
 	// Paso 2: Construir la URL de la API
-	apiURL := os.Getenv("FACTURED_API")
+	apiURL := os.Getenv("LOCALHOST_API")
 	api := apiURL + dteApi
 
 	// Paso 3: Generar un nombre de lote único
-	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)
+	nombreLote := fmt.Sprintf("%s_Lote_%03d", empid, correlativo)
 
 	// Paso 4: Leer el archivo JSON
 	contenido, err := os.ReadFile(rutaEntrada)
