@@ -44,7 +44,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 	}
 
 	// Paso 2: Construir la URL de la API
-	apiURL := os.Getenv("LOCALHOST_API")
+	apiURL := os.Getenv("FACTURED_API")
 	api := apiURL + dteApi
 
 	// Paso 3: Generar un nombre de lote único
@@ -115,9 +115,9 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 			req.Header.Set("Content-Type", "application/json")
 
 			// Paso 13: Realizar la solicitud HTTP POST a la API de forma asíncrona
-			respuesta, err := cliente.Do(req)
+			respuesta, err := SendWithRetries(req, cliente)
 			if err != nil {
-				log.Printf("Error al enviar la solicitud HTTP: %v\n", err)
+				log.Printf("Error al enviar la estructura %s: %v\n", id, err)
 				// Guardar el error en Redis
 				guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
 				return
