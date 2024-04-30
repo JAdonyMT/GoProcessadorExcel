@@ -148,7 +148,10 @@ def main():
                     else:
                         if hoja_nombre not in detalles_por_id[idte]:
                             detalles_por_id[idte][hoja_nombre] = [] 
-                                                        
+                        
+                            
+                        row = row.apply(lambda x: x.strip() if isinstance(x, str) else x)                                                                                                      
+                        
                         # Procesar la columna "Tributos" específicamente
                         if "Tributos" in row.index:
                             tributos_value = row["Tributos"]
