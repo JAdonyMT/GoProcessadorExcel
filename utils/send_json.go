@@ -116,11 +116,12 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 
 			// Paso 13: Realizar la solicitud HTTP POST a la API de forma asíncrona
 			originalErrorMessage := "" // Variable para almacenar el mensaje original
-			respuesta, originalErrorMessage, err := SendWithRetries(req, cliente)
+			respuesta, statusCode, originalErrorMessage, err := SendWithRetries(req, cliente)
 			if err != nil {
 
 				// Variable para rastrear si se realizó un reintento
 				var retried bool
+				statusRespuesta := fmt.Sprintf("Código: %d , Mensaje: %s", statusCode, string(originalErrorMessage))
 
 				// Verificar si se realizó un reintento
 				if err == ErrNoRetries {
@@ -135,7 +136,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 				}
 				// Guardar el error original en Redis si todos los reintentos fallan
 				if originalErrorMessage != "" {
-					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, originalErrorMessage)
+					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, statusRespuesta)
 				} else {
 					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
 				}
@@ -153,7 +154,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 			}
 
 			// Paso 15: Obtener el estado de la respuesta
-			estadoRespuesta := fmt.Sprintf("Código: %d %s, Mensaje: %s", respuesta.StatusCode, respuesta.Status, string(cuerpoRespuesta))
+			estadoRespuesta := fmt.Sprintf("Código: %d, Mensaje: %s", respuesta.StatusCode, string(cuerpoRespuesta))
 
 			// Paso 16: Registrar el estado del IDDTE en Redis
 			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, estadoRespuesta)

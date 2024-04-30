@@ -19,9 +19,10 @@ var errorPatterns = map[int]string{
 var ErrNoRetries = errors.New("no se realizaron reintentos")
 
 // Función para enviar datos a la API con reintentos y análisis de mensajes de error
-func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, string, error) {
+func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, int, string, error) {
 	const maxRetries = 1
 	var originalErrorMessage string
+	var StatusCode int
 	retried := false
 
 	for i := 0; i < maxRetries; i++ {
@@ -33,12 +34,15 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, st
 			// Error de comunicación, como red o timeout
 			if isNetworkError(err) {
 				log.Printf("Intento %d: Error de red o timeout: %v\n", i+1, err)
+				retried = true
 			} else {
 				log.Printf("Intento %d: Error al enviar la solicitud HTTP: %v\n", i+1, err)
 			}
 		} else {
+
+			StatusCode = resp.StatusCode
 			// Verificar si la respuesta indica un error
-			if resp.StatusCode >= 400 {
+			if StatusCode >= 400 {
 				// Leer el cuerpo de la respuesta si está disponible
 				body, readErr := ioutil.ReadAll(resp.Body)
 				if readErr != nil {
@@ -52,7 +56,7 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, st
 
 					// Verificar si el cuerpo de la respuesta coincide con algún patrón de error esperado
 					for status, pattern := range errorPatterns {
-						if resp.StatusCode == status && strings.Contains(string(body), pattern) {
+						if StatusCode == status && strings.Contains(string(body), pattern) {
 							log.Printf("Coincidencia encontrada - Patrón: %s\n", pattern)
 							log.Printf("Error del servidor recuperable detectado. Reintentando...")
 							retried = true
@@ -63,7 +67,7 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, st
 				}
 			} else {
 				// La respuesta es exitosa, retornarla
-				return resp, "", nil
+				return resp, StatusCode, "", nil
 			}
 		}
 
@@ -71,9 +75,9 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, st
 	}
 	if retried {
 		// Si se realizó un reintento exitoso, no se excedió el número máximo de reintentos
-		return nil, originalErrorMessage, fmt.Errorf("se excedió el número máximo de reintentos")
+		return nil, StatusCode, originalErrorMessage, fmt.Errorf("se excedió el número máximo de reintentos")
 	}
-	return nil, originalErrorMessage, ErrNoRetries
+	return nil, StatusCode, originalErrorMessage, ErrNoRetries
 }
 
 func isNetworkError(err error) bool {
