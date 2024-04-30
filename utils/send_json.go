@@ -115,11 +115,16 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 			req.Header.Set("Content-Type", "application/json")
 
 			// Paso 13: Realizar la solicitud HTTP POST a la API de forma asíncrona
-			respuesta, err := SendWithRetries(req, cliente)
+			originalErrorMessage := "" // Variable para almacenar el mensaje original
+			respuesta, originalErrorMessage, err := SendWithRetries(req, cliente)
 			if err != nil {
 				log.Printf("Error al enviar la estructura %s: %v\n", id, err)
-				// Guardar el error en Redis
-				guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
+				// Guardar el error original en Redis si todos los reintentos fallan
+				if originalErrorMessage != "" {
+					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, originalErrorMessage)
+				} else {
+					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
+				}
 				return
 			}
 			defer respuesta.Body.Close()

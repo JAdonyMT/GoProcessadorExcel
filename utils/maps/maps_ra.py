@@ -32,6 +32,31 @@ fc_map = {
 }
 
 
+ccf_map ={
+    "dte":{
+        "CodigoGeneracionContingencia": None,
+        "NumeroIntentos": 0,
+        "VentaTercero": False,
+        "NitTercero": None,
+        "NombreTercero": None,
+        "Rechazado": False
+    },
+    "Identificacion":{
+        "TipoDte": "03"
+    },
+    "Resumen":{
+        "DescuentoNoSujeto": 0,
+        "DescuentoGravado":	0,
+        "DescuentoExento":	0,
+        "RetencionRenta": False
+    },
+    "DocumentosRelacionados":[],
+    "OtrosDocumentosRelacionados":[],
+    "Apendices":[]
+}
+
+
+
 type_map = {
     "dte": {
         "CodigoGeneracionContingencia": str,

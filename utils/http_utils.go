@@ -16,44 +16,67 @@ var errorPatterns = map[int]string{
 }
 
 // Función para enviar datos a la API con reintentos y análisis de mensajes de error
-func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, error) {
-	const maxRetries = 2
+func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, string, error) {
+	const maxRetries = 1
+	var originalErrorMessage string
 	for i := 0; i < maxRetries; i++ {
-		resp, err := client.Do(req)
-		if err == nil {
-			return resp, nil
-		}
 
-		// Verificar si el error es de red o timeout
-		if isNetworkError(err) {
-			log.Printf("Intento %d: Error de red o timeout: %v\n", i+1, err)
-		} else {
-			log.Printf("Intento %d: Error al enviar la solicitud HTTP: %v\n", i+1, err)
-		}
+		reqClone := cloneRequest(req) // Clonar la solicitud original
 
-		// Leer el cuerpo de la respuesta si está disponible
-		if resp != nil && resp.Body != nil {
-			body, readErr := ioutil.ReadAll(resp.Body)
-			if readErr != nil {
-				log.Printf("Error al leer el cuerpo de la respuesta: %v\n", readErr)
+		resp, err := client.Do(reqClone)
+		if err != nil {
+			// Error de comunicación, como red o timeout
+			if isNetworkError(err) {
+				log.Printf("Intento %d: Error de red o timeout: %v\n", i+1, err)
 			} else {
-				log.Printf("Mensaje de la respuesta: %s\n", string(body))
+				log.Printf("Intento %d: Error al enviar la solicitud HTTP: %v\n", i+1, err)
+			}
+		} else {
+			// Verificar si la respuesta indica un error
+			if resp.StatusCode >= 400 {
+				// Leer el cuerpo de la respuesta si está disponible
+				body, readErr := ioutil.ReadAll(resp.Body)
+				if readErr != nil {
+					log.Printf("Error al leer el cuerpo de la respuesta: %v\n", readErr)
+				} else {
+					log.Printf("Mensaje de la respuesta: %s\n", string(body))
 
-				// Verificar si el código de respuesta y el mensaje coinciden con algún patrón
-				if pattern, ok := errorPatterns[resp.StatusCode]; ok && strings.Contains(string(body), pattern) {
-					log.Printf("Mensaje de la respuesta coincide con el patrón del código de estado %d. Reintentando...\n", resp.StatusCode)
-					time.Sleep(2 * time.Second) // Esperar antes de intentar nuevamente
-					continue
+					if i == 0 {
+						originalErrorMessage = string(body)
+					}
+
+					// Verificar si el cuerpo de la respuesta coincide con algún patrón de error esperado
+					for status, pattern := range errorPatterns {
+						if resp.StatusCode == status && strings.Contains(string(body), pattern) {
+							log.Printf("Coincidencia encontrada - Patrón: %s\n", pattern)
+							log.Printf("Error del servidor recuperable detectado. Reintentando...")
+							time.Sleep(2 * time.Second) // Esperar antes de intentar nuevamente
+							continue
+						}
+					}
 				}
+			} else {
+				// La respuesta es exitosa, retornarla
+				return resp, "", nil
 			}
 		}
 
 		time.Sleep(2 * time.Second) // Esperar antes de intentar nuevamente
 	}
-	return nil, fmt.Errorf("se excedió el número máximo de reintentos")
+	return nil, originalErrorMessage, fmt.Errorf("se excedió el número máximo de reintentos")
 }
 
 func isNetworkError(err error) bool {
 	netErr, ok := err.(net.Error)
 	return ok && (netErr.Timeout() || netErr.Temporary())
+}
+
+func cloneRequest(req *http.Request) *http.Request {
+	reqClone := req.Clone(req.Context()) // Clonar la solicitud original
+	reqClone.Header = make(http.Header)  // Crear un nuevo encabezado para la solicitud clonada
+	// Copiar todos los encabezados de la solicitud original a la solicitud clonada
+	for key, values := range req.Header {
+		reqClone.Header[key] = values
+	}
+	return reqClone
 }
