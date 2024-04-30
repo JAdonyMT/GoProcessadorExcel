@@ -118,7 +118,21 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 			originalErrorMessage := "" // Variable para almacenar el mensaje original
 			respuesta, originalErrorMessage, err := SendWithRetries(req, cliente)
 			if err != nil {
-				log.Printf("Error al enviar la estructura %s: %v\n", id, err)
+
+				// Variable para rastrear si se realizó un reintento
+				var retried bool
+
+				// Verificar si se realizó un reintento
+				if err == ErrNoRetries {
+					retried = false
+				} else {
+					retried = true
+				}
+
+				// Imprimir el log de error solo si se realizó un reintento
+				if retried {
+					log.Printf("Error al enviar la estructura %s: %v\n", id, err)
+				}
 				// Guardar el error original en Redis si todos los reintentos fallan
 				if originalErrorMessage != "" {
 					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, originalErrorMessage)

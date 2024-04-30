@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,10 +16,14 @@ var errorPatterns = map[int]string{
 	//Agregar mas patrones de errores que pueden ser reprocesados
 }
 
+var ErrNoRetries = errors.New("no se realizaron reintentos")
+
 // Función para enviar datos a la API con reintentos y análisis de mensajes de error
 func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, string, error) {
 	const maxRetries = 1
 	var originalErrorMessage string
+	retried := false
+
 	for i := 0; i < maxRetries; i++ {
 
 		reqClone := cloneRequest(req) // Clonar la solicitud original
@@ -50,6 +55,7 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, st
 						if resp.StatusCode == status && strings.Contains(string(body), pattern) {
 							log.Printf("Coincidencia encontrada - Patrón: %s\n", pattern)
 							log.Printf("Error del servidor recuperable detectado. Reintentando...")
+							retried = true
 							time.Sleep(2 * time.Second) // Esperar antes de intentar nuevamente
 							continue
 						}
@@ -63,7 +69,11 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, st
 
 		time.Sleep(2 * time.Second) // Esperar antes de intentar nuevamente
 	}
-	return nil, originalErrorMessage, fmt.Errorf("se excedió el número máximo de reintentos")
+	if retried {
+		// Si se realizó un reintento exitoso, no se excedió el número máximo de reintentos
+		return nil, originalErrorMessage, fmt.Errorf("se excedió el número máximo de reintentos")
+	}
+	return nil, originalErrorMessage, ErrNoRetries
 }
 
 func isNetworkError(err error) bool {
