@@ -44,7 +44,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 	}
 
 	// Paso 2: Construir la URL de la API
-	apiURL := os.Getenv("FACTURED_API")
+	apiURL := os.Getenv("LOCALHOST_API")
 	api := apiURL + dteApi
 
 	// Paso 3: Generar un nombre de lote único
@@ -76,6 +76,16 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 	var wg sync.WaitGroup
 
 	log.Println("Iniciando el envío de las estructuras a la API...")
+
+	//Crear el archivo de registro
+	logFileName := "IDDTElog.txt"
+	logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
+		return
+	}
+	defer logFile.Close()
+
 	// Paso 9: Enviar cada estructura a la API y registrar su estado en Redis
 	for id, estructura := range estructuras {
 		wg.Add(1) // Incrementar el contador del WaitGroup
@@ -140,6 +150,12 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 				} else {
 					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
 				}
+				// Escribir el error en el archivo de registro
+				logEntry := fmt.Sprintf("%s - %s - Error al enviar la estructura: %v\n", time.Now().Format(time.Stamp), "IDDTE-"+id, statusRespuesta)
+				logEntry += ("\n<------------------------------------------------------------->\n")
+				if _, err := logFile.WriteString(logEntry); err != nil {
+					log.Printf("Error al escribir en el archivo de registro: %v\n", err)
+				}
 				return
 			}
 			defer respuesta.Body.Close()
@@ -158,15 +174,6 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 
 			// Paso 16: Registrar el estado del IDDTE en Redis
 			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, estadoRespuesta)
-
-			// Paso 17: Crear el archivo de registro
-			logFileName := "IDDTElog.txt"
-			logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
-				return
-			}
-			defer logFile.Close()
 
 			dt := time.Now()
 

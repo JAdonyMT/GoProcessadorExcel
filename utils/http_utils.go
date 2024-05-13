@@ -31,12 +31,15 @@ func SendWithRetries(req *http.Request, client *http.Client) (*http.Response, in
 
 		resp, err := client.Do(reqClone)
 		if err != nil {
+
+			originalErrorMessage = err.Error()
 			// Error de comunicación, como red o timeout
 			if isNetworkError(err) {
 				log.Printf("Intento %d: Error de red o timeout: %v\n", i+1, err)
 				retried = true
 			} else {
 				log.Printf("Intento %d: Error al enviar la solicitud HTTP: %v\n", i+1, err)
+				retried = true
 			}
 		} else {
 

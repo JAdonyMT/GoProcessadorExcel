@@ -97,7 +97,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		err = cmd.Run()
 		if err != nil {
 			// Si la ejecución del script no fue exitosa, guardar un mensaje de error en Redis
-			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s", err, stderr.String())
+			errMsg := fmt.Sprintf("Error en la conversión: %v. Detalles: %s\n", err, stderr.String())
 
 			logEntry := fmt.Sprintf("\n%s - %s_Lote_%03d: Error en la conversión: %v. Detalles: ", dt.Format(time.Stamp), empid, correlativo, err)
 			logWrite(logEntry, stdout.String())
