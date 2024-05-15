@@ -102,7 +102,7 @@ fse_map={
         "CodigoGeneracionContingencia": None,
         "NumeroIntentos": 0,
         "Rechazado": False,
-        "Observaciones": ""
+        "Observaciones": None
     },
     "Identificacion":{
         "TipoDte": "14"

@@ -202,8 +202,8 @@ func guardarEstadoEnRedis(rdb *redis.Client, nombreLote string, id string, estad
 		log.Printf("Error al guardar el estado en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
 	} else {
 		// Establecer un tiempo de expiración para la clave específica dentro del hash
-		// expiration := 3 * 30 * 24 * time.Hour // 3 meses en horas,en vez de time.Minute
-		err = rdb.Expire(context.Background(), nombreLote, 24*time.Hour).Err()
+		expiration := 3 * 30 * 24 * time.Hour // 3 meses en horas,en vez de time.Minute
+		err = rdb.Expire(context.Background(), nombreLote, expiration).Err()
 		if err != nil {
 			log.Printf("Error al establecer el tiempo de expiración en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
 		}
