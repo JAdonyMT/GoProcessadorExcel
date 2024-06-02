@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -33,8 +34,12 @@ func HandleStatusConsulta(c *gin.Context, rdb *redis.Client) {
 
 	// Filtrar los archivos por extensión ".xlsx"
 	xlsxFiles := make(map[string]string)
+
+	patronCancel := regexp.MustCompile(`\.xlsx:cancel$`)
+	patron := regexp.MustCompile(`\.xlsx:\d+$`)
+
 	for _, estado := range estados {
-		if strings.HasSuffix(estado, ".xlsx") {
+		if patron.MatchString(estado) || patronCancel.MatchString(estado) {
 			// Obtener el estado del archivo y agregarlo al mapa
 			status, _ := rdb.Get(context.Background(), estado).Result()
 			lote := strings.TrimPrefix(estado, empPrefix)

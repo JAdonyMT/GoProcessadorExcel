@@ -125,7 +125,7 @@ func HandleExcelConversion(c *gin.Context, rdb *redis.Client) {
 		}
 		expiration := 3 * 30 * 24 * time.Hour
 		// Guardar el estado con expiración
-		err = rdb.Set(context.Background(), nombreArchivo, successMessage, expiration).Err()
+		err = rdb.Set(context.Background(), nombreArchivo+":"+tipoDte, successMessage, expiration).Err()
 		if err != nil {
 			log.Println("Error al guardar el estado en el historial de Redis:", err)
 		}
