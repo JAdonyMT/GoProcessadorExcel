@@ -1,0 +1,246 @@
+package controllers
+
+import (
+	"GoProcesadorExcel/authentication"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"unicode"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
+	"github.com/tealeg/xlsx"
+)
+
+// KeyValue representa un par clave-valor
+type KeyValue struct {
+	Key   string
+	Value string
+}
+
+// Mensaje estructura del mensaje en el valor del par clave-valor
+type Mensaje struct {
+	CodigoGeneracion string `json:"CodigoGeneracion"`
+	SelloRecibido    string `json:"SelloRecibido"`
+	Estado           string `json:"Estado"`
+	DescripcionMsg   string `json:"DescripcionMsg"`
+}
+
+// Estructura del valor en el par clave-valor
+type Valor struct {
+	Codigo  int     `json:"Código"`
+	Mensaje Mensaje `json:"Mensaje"`
+}
+
+func GetReporte(c *gin.Context, rdb *redis.Client) {
+	// Obtener el token del encabezado
+	token := c.GetHeader("Authorization")
+
+	// Validar el token
+	empid, err := authentication.ValidateToken(token)
+	if err != nil {
+		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Obtener el correlativo de la solicitud
+	correlativo := c.Param("correlativo")
+
+	// Obtener los datos desde Redis
+	data, err := getDatosRedis(rdb, empid, correlativo)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Generar el informe en Excel
+	fileName := fmt.Sprintf("reporte_Lote_%s.xlsx", correlativo)
+	if err := generarInformeExcel(data, fileName); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error al generar el informe en Excel: %v", err)})
+		return
+	}
+
+	// Leer el archivo en memoria
+	fileBytes, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error al leer el archivo: %v", err)})
+		return
+	}
+
+	// Codificar los datos en base64
+	encodedFile := base64.StdEncoding.EncodeToString(fileBytes)
+
+	// Enviar los datos codificados en base64 como respuesta
+	c.JSON(http.StatusOK, gin.H{"ReporteExcel": encodedFile})
+}
+
+// obtenerDatosDesdeRedis obtiene los datos desde Redis y los devuelve como una lista de KeyValue
+func getDatosRedis(rdb *redis.Client, empid string, correlativo string) ([]KeyValue, error) {
+	// Construir el nombre del lote usando el correlativo
+	nombreLote := fmt.Sprintf("%s_Lote_%s", empid, correlativo)
+
+	// Obtener todos los pares clave-valor del hash en Redis
+	data, err := rdb.HGetAll(context.Background(), nombreLote).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Verificar si no se encontraron estados para el correlativo dado
+	if len(data) == 0 {
+		return nil, fmt.Errorf("no existe un lote con el correlativo %s", correlativo)
+	}
+
+	// Crear una lista de KeyValue ordenada
+	var result []KeyValue
+	for key, value := range data {
+		result = append(result, KeyValue{Key: key, Value: value})
+	}
+
+	// Ordenar las claves basadas en sus valores numéricos
+	sort.Slice(result, func(i, j int) bool {
+		return getNumero(result[i].Key) < getNumero(result[j].Key)
+	})
+
+	return result, nil
+}
+
+// Función para obtener el valor numérico de una clave
+func getNumero(clave string) int {
+	numeroStr := strings.TrimLeftFunc(clave, func(r rune) bool {
+		return !unicode.IsDigit(r) // Eliminar los caracteres no numéricos al principio
+	})
+	numero, _ := strconv.Atoi(numeroStr)
+	return numero
+}
+
+func generarInformeExcel(data []KeyValue, fileName string) error {
+	// Crear un nuevo archivo de Excel
+	file := xlsx.NewFile()
+	sheet, err := file.AddSheet("Informe")
+	if err != nil {
+		return err
+	}
+
+	// Escribir los encabezados de las columnas
+	headerRow := sheet.AddRow()
+	headerRow.AddCell().SetValue("IDDTE")
+	headerRow.AddCell().SetValue("CodigoGeneracion")
+	headerRow.AddCell().SetValue("SelloRecibido")
+	headerRow.AddCell().SetValue("Estado")
+	headerRow.AddCell().SetValue("Mensaje")
+
+	fmt.Printf("Data: %v\n", data)
+
+	// Escribir los datos en el archivo Excel
+	for _, kv := range data {
+		// Encontrar el índice de "Código"
+		startIndex := strings.Index(kv.Value, `Código: `)
+		if startIndex == -1 {
+			fmt.Printf("Formato inválido para clave %s\n", kv.Key)
+			continue
+		}
+
+		// Encontrar el índice de "Mensaje"
+		mensajeIndex := strings.Index(kv.Value, `Mensaje: {`)
+		if mensajeIndex == -1 {
+			fmt.Printf("Formato inválido para clave %s\n", kv.Key)
+			continue
+		}
+
+		// Extraer y deserializar el Código
+		codigoStr := kv.Value[startIndex+8 : mensajeIndex-2]
+		var v Valor
+		fmt.Sscanf(codigoStr, "%d", &v.Codigo)
+
+		// Extraer y deserializar el Mensaje
+		jsonData := kv.Value[mensajeIndex+9:]        // +9 para saltar "Mensaje: {"
+		endIndex := strings.LastIndex(jsonData, "}") // Encontrar el último cierre de objeto
+		if endIndex != -1 {
+			jsonData = jsonData[:endIndex+1] // Mantener hasta el cierre de "}"
+		}
+
+		// Añadir una nueva fila al archivo Excel
+		row := sheet.AddRow()
+		row.AddCell().SetValue(kv.Key)
+
+		fmt.Printf("JSON: %s\n", jsonData)
+
+		// Verificar si el mensaje contiene solo un campo "Message"
+		if strings.Contains(jsonData, `"Message"`) {
+			var mensajeSimple map[string]string
+			if err := json.Unmarshal([]byte(jsonData), &mensajeSimple); err != nil {
+				fmt.Printf("Error al parsear JSON simple para clave %s: %v\n", kv.Key, err)
+				continue
+			}
+
+			// Escribir el contenido de "Message" en la celda de Mensaje
+			row.AddCell().SetValue("N/A")
+			row.AddCell().SetValue("N/A")
+			row.AddCell().SetValue("N/A")
+			row.AddCell().SetValue(mensajeSimple["Message"])
+
+		} else {
+			// Deserializar el mensaje completo
+			if err := json.Unmarshal([]byte(jsonData), &v.Mensaje); err != nil {
+				fmt.Printf("Error al parsear JSON para clave %s: %v\n", kv.Key, err)
+				continue
+			}
+
+			// Escribir los valores en las celdas correspondientes
+			if v.Mensaje.CodigoGeneracion == "" {
+				row.AddCell().SetValue("N/A")
+			} else {
+				row.AddCell().SetValue(v.Mensaje.CodigoGeneracion)
+			}
+			if v.Mensaje.SelloRecibido == "" {
+				row.AddCell().SetValue("N/A")
+			} else {
+				row.AddCell().SetValue(v.Mensaje.SelloRecibido)
+			}
+			if v.Mensaje.Estado == "" {
+				row.AddCell().SetValue("N/A")
+			} else {
+				row.AddCell().SetValue(v.Mensaje.Estado)
+			}
+			if v.Mensaje.DescripcionMsg == "" {
+				row.AddCell().SetValue("N/A")
+			} else {
+				row.AddCell().SetValue(v.Mensaje.DescripcionMsg)
+			}
+		}
+
+		// Determinar el color de la fila según si el valor indica un acierto o un error
+		var color string
+		if esAcierto(v) {
+			color = "C6EFCE" // verde
+		} else {
+			color = "FFC7CE" // rojo
+		}
+
+		// Aplicar el color a la fila
+		for i, cell := range row.Cells {
+			style := cell.GetStyle()
+			if i == 0 { // Solo aplicar color a la primera celda de cada fila de datos
+				style.Fill = *xlsx.NewFill("solid", color, color)
+				cell.SetStyle(style)
+			}
+			style.Font.Name = "Calibri"
+			style.Font.Size = 11
+		}
+	}
+
+	// Guardar el archivo de Excel
+	return file.Save(fileName)
+}
+
+// esAcierto determina si el valor indica un acierto o un error
+func esAcierto(v Valor) bool {
+	return v.Codigo == 200 && v.Mensaje.CodigoGeneracion != "" && v.Mensaje.SelloRecibido != "" && v.Mensaje.Estado == "PROCESADO"
+}

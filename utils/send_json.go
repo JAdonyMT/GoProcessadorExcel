@@ -44,7 +44,7 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 	}
 
 	// Paso 2: Construir la URL de la API
-	apiURL := os.Getenv("LOCALHOST_API")
+	apiURL := os.Getenv("FACTURED_API")
 	api := apiURL + dteApi
 
 	// Paso 3: Generar un nombre de lote único

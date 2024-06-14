@@ -22,6 +22,10 @@ func SetupRouter(rdb *redis.Client) *gin.Engine {
 		controllers.HandleExcelConversion(c, rdb)
 	})
 
+	r.GET("/report/:correlativo", func(c *gin.Context) {
+		controllers.GetReporte(c, rdb)
+	})
+
 	status := r.Group("/status")
 	{
 		status.GET("/lotes", func(c *gin.Context) {
