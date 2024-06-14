@@ -19,10 +19,13 @@ func main() {
 	}
 
 	redisAddr := os.Getenv("REDIS_ADR")
+	redisUsr := os.Getenv("REDIS_USR")
 	redisPsw := os.Getenv("REDIS_PSW")
+
 	// Configurar la conexión a Redis
 	rdb = redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
+		Username: redisUsr,
 		Password: redisPsw,
 		DB:       0,
 	})
