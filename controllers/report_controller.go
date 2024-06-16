@@ -2,12 +2,14 @@ package controllers
 
 import (
 	"GoProcesadorExcel/authentication"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,17 +62,11 @@ func GetReporte(c *gin.Context, rdb *redis.Client) {
 		return
 	}
 
+	fileName := fmt.Sprintf("%s_Lote_%s.xlsx", empid, correlativo)
 	// Generar el informe en Excel
-	fileName := fmt.Sprintf("reporte_Lote_%s.xlsx", correlativo)
-	if err := generarInformeExcel(data, fileName); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error al generar el informe en Excel: %v", err)})
-		return
-	}
-
-	// Leer el archivo en memoria
-	fileBytes, err := ioutil.ReadFile(fileName)
+	fileBytes, err := generarInformeExcel(data, fileName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error al leer el archivo: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error al generar el informe en Excel: %v", err)})
 		return
 	}
 
@@ -120,25 +116,41 @@ func getNumero(clave string) int {
 	return numero
 }
 
-func generarInformeExcel(data []KeyValue, fileName string) error {
-	// Crear un nuevo archivo de Excel
-	file := xlsx.NewFile()
-	sheet, err := file.AddSheet("Informe")
-	if err != nil {
-		return err
+// Función para generar un informe en Excel
+func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
+	// Construir el nombre del archivo de Excel del lote
+	originalFilePath := filepath.Join("data", "archivos_excel", lote)
+
+	// Verificar si el archivo existe
+	_, err := os.Stat(originalFilePath)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("el archivo %s no existe", originalFilePath)
 	}
 
-	// Escribir los encabezados de las columnas
-	headerRow := sheet.AddRow()
+	// Abrir el archivo de Excel existente
+	originalFile, err := xlsx.OpenFile(originalFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error al abrir el archivo de Excel: %v", err)
+	}
+
+	// Crear un nuevo archivo de Excel
+	newFile := xlsx.NewFile()
+
+	// Crear una nueva hoja de informe en el nuevo archivo
+	informeSheet, err := newFile.AddSheet("Informe")
+	if err != nil {
+		return nil, fmt.Errorf("error al añadir la hoja 'Informe' al nuevo archivo de Excel: %v", err)
+	}
+
+	// Escribir los encabezados de las columnas en la hoja 'Informe'
+	headerRow := informeSheet.AddRow()
 	headerRow.AddCell().SetValue("IDDTE")
 	headerRow.AddCell().SetValue("CodigoGeneracion")
 	headerRow.AddCell().SetValue("SelloRecibido")
 	headerRow.AddCell().SetValue("Estado")
 	headerRow.AddCell().SetValue("Mensaje")
 
-	fmt.Printf("Data: %v\n", data)
-
-	// Escribir los datos en el archivo Excel
+	// Escribir los datos en la hoja 'Informe'
 	for _, kv := range data {
 		// Encontrar el índice de "Código"
 		startIndex := strings.Index(kv.Value, `Código: `)
@@ -166,11 +178,9 @@ func generarInformeExcel(data []KeyValue, fileName string) error {
 			jsonData = jsonData[:endIndex+1] // Mantener hasta el cierre de "}"
 		}
 
-		// Añadir una nueva fila al archivo Excel
-		row := sheet.AddRow()
+		// Añadir una nueva fila al archivo Excel en la hoja 'Informe'
+		row := informeSheet.AddRow()
 		row.AddCell().SetValue(kv.Key)
-
-		fmt.Printf("JSON: %s\n", jsonData)
 
 		// Verificar si el mensaje contiene solo un campo "Message"
 		if strings.Contains(jsonData, `"Message"`) {
@@ -236,8 +246,31 @@ func generarInformeExcel(data []KeyValue, fileName string) error {
 		}
 	}
 
-	// Guardar el archivo de Excel
-	return file.Save(fileName)
+	// Copiar todas las hojas del archivo original al nuevo archivo
+	for _, sheet := range originalFile.Sheets {
+		newSheet, err := newFile.AddSheet(sheet.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error al añadir la hoja '%s' al nuevo archivo de Excel: %v", sheet.Name, err)
+		}
+		for _, row := range sheet.Rows {
+			newRow := newSheet.AddRow()
+			for _, cell := range row.Cells {
+				newCell := newRow.AddCell()
+				newCell.Value = cell.Value
+				style := cell.GetStyle()
+				newCell.SetStyle(style)
+			}
+		}
+	}
+
+	// Guardar el nuevo archivo de Excel en un buffer
+	var buffer bytes.Buffer
+	err = newFile.Write(&buffer)
+	if err != nil {
+		return nil, fmt.Errorf("error al guardar el archivo de Excel: %v", err)
+	}
+
+	return buffer.Bytes(), nil
 }
 
 // esAcierto determina si el valor indica un acierto o un error
