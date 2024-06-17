@@ -121,16 +121,14 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 	// Construir el nombre del archivo de Excel del lote
 	originalFilePath := filepath.Join("data", "archivos_excel", lote)
 
-	// Verificar si el archivo existe
+	// Intentar abrir el archivo de Excel existente
+	var originalFile *xlsx.File
 	_, err := os.Stat(originalFilePath)
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("el archivo %s no existe", originalFilePath)
-	}
-
-	// Abrir el archivo de Excel existente
-	originalFile, err := xlsx.OpenFile(originalFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("error al abrir el archivo de Excel: %v", err)
+	if !os.IsNotExist(err) {
+		originalFile, err = xlsx.OpenFile(originalFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error al abrir el archivo de Excel: %v", err)
+		}
 	}
 
 	// Crear un nuevo archivo de Excel
@@ -246,23 +244,24 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 		}
 	}
 
-	// Copiar todas las hojas del archivo original al nuevo archivo
-	for _, sheet := range originalFile.Sheets {
-		newSheet, err := newFile.AddSheet(sheet.Name)
-		if err != nil {
-			return nil, fmt.Errorf("error al añadir la hoja '%s' al nuevo archivo de Excel: %v", sheet.Name, err)
-		}
-		for _, row := range sheet.Rows {
-			newRow := newSheet.AddRow()
-			for _, cell := range row.Cells {
-				newCell := newRow.AddCell()
-				newCell.Value = cell.Value
-				style := cell.GetStyle()
-				newCell.SetStyle(style)
+	// Si el archivo original existe, copiar sus hojas al nuevo archivo
+	if originalFile != nil {
+		for _, sheet := range originalFile.Sheets {
+			newSheet, err := newFile.AddSheet(sheet.Name)
+			if err != nil {
+				return nil, fmt.Errorf("error al añadir la hoja '%s' al nuevo archivo de Excel: %v", sheet.Name, err)
+			}
+			for _, row := range sheet.Rows {
+				newRow := newSheet.AddRow()
+				for _, cell := range row.Cells {
+					newCell := newRow.AddCell()
+					newCell.Value = cell.Value
+					style := cell.GetStyle()
+					newCell.SetStyle(style)
+				}
 			}
 		}
 	}
-
 	// Guardar el nuevo archivo de Excel en un buffer
 	var buffer bytes.Buffer
 	err = newFile.Write(&buffer)
