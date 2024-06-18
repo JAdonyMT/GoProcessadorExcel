@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -121,16 +122,14 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 	// Construir el nombre del archivo de Excel del lote
 	originalFilePath := filepath.Join("data", "archivos_excel", lote)
 
-	// Verificar si el archivo existe
+	// Intentar abrir el archivo de Excel existente
+	var originalFile *xlsx.File
 	_, err := os.Stat(originalFilePath)
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("el archivo %s no existe", originalFilePath)
-	}
-
-	// Abrir el archivo de Excel existente
-	originalFile, err := xlsx.OpenFile(originalFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("error al abrir el archivo de Excel: %v", err)
+	if !os.IsNotExist(err) {
+		originalFile, err = xlsx.OpenFile(originalFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error al abrir el archivo de Excel: %v", err)
+		}
 	}
 
 	// Crear un nuevo archivo de Excel
@@ -149,6 +148,7 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 	headerRow.AddCell().SetValue("SelloRecibido")
 	headerRow.AddCell().SetValue("Estado")
 	headerRow.AddCell().SetValue("Mensaje")
+	headerRow.AddCell().SetValue("HojaError")
 
 	// Escribir los datos en la hoja 'Informe'
 	for _, kv := range data {
@@ -183,18 +183,23 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 		row.AddCell().SetValue(kv.Key)
 
 		// Verificar si el mensaje contiene solo un campo "Message"
-		if strings.Contains(jsonData, `"Message"`) {
-			var mensajeSimple map[string]string
-			if err := json.Unmarshal([]byte(jsonData), &mensajeSimple); err != nil {
-				fmt.Printf("Error al parsear JSON simple para clave %s: %v\n", kv.Key, err)
-				continue
-			}
+		if v.Codigo == 400 || v.Codigo == 500 {
+			// Si el código es 400, evaluar el contenido de Mensaje
+			row.AddCell().SetValue("N/A")
+			row.AddCell().SetValue("N/A")
+			row.AddCell().SetValue("N/A")
+			row.AddCell().SetValue(fmt.Sprintf("%v", jsonData))
 
-			// Escribir el contenido de "Message" en la celda de Mensaje
-			row.AddCell().SetValue("N/A")
-			row.AddCell().SetValue("N/A")
-			row.AddCell().SetValue("N/A")
-			row.AddCell().SetValue(mensajeSimple["Message"])
+			errorsSheet := verificacionErrorMessage(jsonData)
+			values := strings.Join(errorsSheet, ", ")
+			row.AddCell().SetValue(values)
+
+			boldStyle := xlsx.NewStyle()
+			boldStyle.Font.Bold = true
+			// Aplicar estilo de negrita si es la columna "HojaError"
+			if len(row.Cells) > 0 && row.Cells[len(row.Cells)-1].Value == values {
+				row.Cells[len(row.Cells)-1].SetStyle(boldStyle)
+			}
 
 		} else {
 			// Deserializar el mensaje completo
@@ -224,6 +229,16 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 			} else {
 				row.AddCell().SetValue(v.Mensaje.DescripcionMsg)
 			}
+
+			errorValue := verificacionError(v)
+			row.AddCell().SetValue(errorValue)
+
+			boldStyle := xlsx.NewStyle()
+			boldStyle.Font.Bold = true
+			// Aplicar estilo de negrita si es la columna "HojaError"
+			if len(row.Cells) > 0 && row.Cells[len(row.Cells)-1].Value == errorValue {
+				row.Cells[len(row.Cells)-1].SetStyle(boldStyle)
+			}
 		}
 
 		// Determinar el color de la fila según si el valor indica un acierto o un error
@@ -246,23 +261,24 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 		}
 	}
 
-	// Copiar todas las hojas del archivo original al nuevo archivo
-	for _, sheet := range originalFile.Sheets {
-		newSheet, err := newFile.AddSheet(sheet.Name)
-		if err != nil {
-			return nil, fmt.Errorf("error al añadir la hoja '%s' al nuevo archivo de Excel: %v", sheet.Name, err)
-		}
-		for _, row := range sheet.Rows {
-			newRow := newSheet.AddRow()
-			for _, cell := range row.Cells {
-				newCell := newRow.AddCell()
-				newCell.Value = cell.Value
-				style := cell.GetStyle()
-				newCell.SetStyle(style)
+	// Si el archivo original existe, copiar sus hojas al nuevo archivo
+	if originalFile != nil {
+		for _, sheet := range originalFile.Sheets {
+			newSheet, err := newFile.AddSheet(sheet.Name)
+			if err != nil {
+				return nil, fmt.Errorf("error al añadir la hoja '%s' al nuevo archivo de Excel: %v", sheet.Name, err)
+			}
+			for _, row := range sheet.Rows {
+				newRow := newSheet.AddRow()
+				for _, cell := range row.Cells {
+					newCell := newRow.AddCell()
+					newCell.Value = cell.Value
+					style := cell.GetStyle()
+					newCell.SetStyle(style)
+				}
 			}
 		}
 	}
-
 	// Guardar el nuevo archivo de Excel en un buffer
 	var buffer bytes.Buffer
 	err = newFile.Write(&buffer)
@@ -276,4 +292,45 @@ func generarInformeExcel(data []KeyValue, lote string) ([]byte, error) {
 // esAcierto determina si el valor indica un acierto o un error
 func esAcierto(v Valor) bool {
 	return v.Codigo == 200 && v.Mensaje.CodigoGeneracion != "" && v.Mensaje.SelloRecibido != "" && v.Mensaje.Estado == "PROCESADO"
+}
+
+func verificacionError(rowData Valor) string {
+	// Verificar todas las condiciones necesarias para determinar el contenido de "HojaError"
+	if rowData.Mensaje.Estado == "RECHAZADO" && strings.Contains(rowData.Mensaje.DescripcionMsg, "cuerpoDocumento.item") {
+		return "Detalles"
+	}
+	if rowData.Mensaje.Estado == "RECHAZADO" && strings.Contains(rowData.Mensaje.DescripcionMsg, "Receptor.") {
+		return "Receptor"
+	}
+	if rowData.Mensaje.Estado == "RECHAZADO" && strings.Contains(rowData.Mensaje.DescripcionMsg, "documentoRelacionado") {
+		return "DocumentosRelacionados"
+	}
+
+	return "N/A"
+}
+
+func verificacionErrorMessage(message string) []string {
+	var errorsSheets []string
+	re := regexp.MustCompile(`Detalles\[\d+\].`)
+
+	// Ejemplo de lógica:
+	if strings.Contains(message, "Receptor.") {
+		errorsSheets = append(errorsSheets, "Receptor")
+	}
+	if strings.Contains(message, "DocumentosRelacionados") {
+		errorsSheets = append(errorsSheets, "DocumentosRelacionados")
+	}
+	if strings.Contains(message, "No existe establecimiento con codigo") {
+		errorsSheets = append(errorsSheets, "Identificacion")
+	}
+	if re.MatchString(message) {
+		errorsSheets = append(errorsSheets, "Detalles")
+	}
+
+	if len(errorsSheets) == 0 {
+		errorsSheets = append(errorsSheets, "N/A")
+	}
+
+	// Por defecto
+	return errorsSheets
 }
