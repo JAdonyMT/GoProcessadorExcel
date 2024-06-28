@@ -18,12 +18,15 @@ func main() {
 		log.Fatal("Error al cargar archivo .env")
 	}
 
-	redisUrl := os.Getenv("REDIS_URL")
-	redisKey := os.Getenv("REDIS_PSW")
+	redisAddr := os.Getenv("REDIS_ADR")
+	redisUsr := os.Getenv("REDIS_USR")
+	redisPsw := os.Getenv("REDIS_PSW")
+
 	// Configurar la conexión a Redis
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     redisUrl,
-		Password: redisKey,
+		Addr:     redisAddr,
+		Username: redisUsr,
+		Password: redisPsw,
 		DB:       0,
 	})
 

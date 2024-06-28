@@ -2,3 +2,5 @@
 IDDTElog.txt
 Lotelog.txt
 utils/__pycache__/
+utils/maps/__pycache__/
+.vscode/

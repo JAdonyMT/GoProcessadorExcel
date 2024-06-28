@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"GoProcesadorExcel/authentication"
 	"context"
 	"fmt"
 	"net/http"
@@ -19,14 +20,15 @@ func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
 	token := c.GetHeader("Authorization")
 
 	// Validar el token
-	if err := ValidateToken(token); err != nil {
+	empid, err := authentication.ValidateToken(token)
+	if err != nil {
 		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Obtener todas las claves que coinciden con el patrón "Lote_*"
-	keys, err := rdb.Keys(context.Background(), "Lote_*").Result()
+	keys, err := rdb.Keys(context.Background(), empid+"_Lote_*").Result()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener las claves de los archivos"})
 		return
@@ -84,8 +86,9 @@ func HandleStatusIddte(c *gin.Context, rdb *redis.Client) {
 			estadosOrdenados.Set(clave, estados[clave])
 		}
 
+		lote := strings.TrimPrefix(key, empid+"_")
 		// Agregar el mapa ordenado al historial
-		historial[key] = estadosOrdenados
+		historial[lote] = estadosOrdenados
 	}
 
 	// Devolver el historial como respuesta JSON
@@ -99,7 +102,8 @@ func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
 	token := c.GetHeader("Authorization")
 
 	// Validar el token
-	if err := ValidateToken(token); err != nil {
+	empid, err := authentication.ValidateToken(token)
+	if err != nil {
 		// Manejar el error, por ejemplo, enviar una respuesta de error al cliente
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -109,7 +113,7 @@ func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
 	correlativo := c.Param("id")
 
 	// Construir el nombre del lote usando el correlativo
-	nombreLote := fmt.Sprintf("Lote_%s", correlativo)
+	nombreLote := fmt.Sprintf("%s_Lote_%s", empid, correlativo)
 
 	// Obtener los estados de los IDDTEs dentro del lote en Redis
 	estados, err := rdb.HGetAll(context.Background(), nombreLote).Result()
@@ -152,7 +156,9 @@ func HandleUniqueStatusIddte(c *gin.Context, rdb *redis.Client) {
 		estadosOrdenados.Set(clave, estados[clave])
 	}
 
-	response := gin.H{nombreLote: estadosOrdenados}
+	lote := strings.TrimPrefix(nombreLote, empid+"_")
+
+	response := gin.H{lote: estadosOrdenados}
 	// Devolver los estados del lote como respuesta JSON
 	c.JSON(http.StatusOK, response)
 }

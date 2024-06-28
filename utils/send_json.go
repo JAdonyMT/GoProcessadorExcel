@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"GoProcesadorExcel/authentication"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -17,32 +19,45 @@ import (
 var apiMap = map[string]string{
 	"01":     "/dte/fc",
 	"03":     "/dte/ccf",
-	"11":     "/dte/fex",
+	"04":     "/dte/nr",
 	"05":     "/dte/ncnd",
+	"06":     "/dte/ncnd",
+	"07":     "/dte/cr",
+	"08":     "/dte/cl",
+	"09":     "/dte/dcl",
+	"11":     "/dte/fex",
 	"14":     "/dte/fse",
+	"15":     "/dte/cd",
 	"cancel": "/dte/cancel",
 }
 
+// ProcesarArchivoJSON procesa un archivo JSON enviando sus estructuras a una API y registrando su estado en Redis
 func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, rdb *redis.Client, correlativo int) {
+
+	empid, _ := authentication.ValidateToken(authToken)
+
+	// Paso 1: Obtener la API correspondiente al tipo de DTE
 	dteApi, ok := apiMap[tipoDte]
 	if !ok {
 		log.Printf("Tipo de DTE no válido: %s\n", tipoDte)
 		return
 	}
 
-	apiURL := os.Getenv("LOCALHOST_API")
+	// Paso 2: Construir la URL de la API
+	apiURL := os.Getenv("FACTURED_API")
 	api := apiURL + dteApi
 
-	nombreLote := fmt.Sprintf("Lote_%03d", correlativo)
+	// Paso 3: Generar un nombre de lote único
+	nombreLote := fmt.Sprintf("%s_Lote_%03d", empid, correlativo)
 
-	// Leer el archivo JSON
-	contenido, err := ioutil.ReadFile(rutaEntrada)
+	// Paso 4: Leer el archivo JSON
+	contenido, err := os.ReadFile(rutaEntrada)
 	if err != nil {
 		log.Printf("Error al leer el archivo JSON %s: %v\n", rutaEntrada, err)
 		return
 	}
 
-	// Analizar el JSON en una estructura de datos
+	// Paso 5: Analizar el JSON en una estructura de datos
 	var estructuras map[string]interface{}
 	err = json.Unmarshal(contenido, &estructuras)
 	if err != nil {
@@ -50,74 +65,135 @@ func ProcesarArchivoJSON(rutaEntrada string, tipoDte string, authToken string, r
 		return
 	}
 
-	// Enviar cada estructura a la API y registrar su estado en Redis
-	for id, estructura := range estructuras {
-		contenidoJSON, err := json.Marshal(estructura)
-		if err != nil {
-			log.Printf("Error al convertir la estructura a JSON: %v\n", err)
-			continue
-		}
+	// Paso 6: Crear un cliente HTTP para reutilizarlo
+	cliente := &http.Client{}
 
-		// Crear la solicitud HTTP
-		req, err := http.NewRequest("POST", api, bytes.NewBuffer(contenidoJSON))
-		if err != nil {
-			log.Printf("Error al crear la solicitud HTTP: %v\n", err)
-			// Guardar el error en Redis
-			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
-			continue
-		}
+	// Paso 7: Crear un canal para limitar el número de goroutines
+	maxGoroutines := 15 // Establece el número máximo de goroutines
+	semaforo := make(chan struct{}, maxGoroutines)
 
-		// Agregar el encabezado de autorización
-		req.Header.Set("Authorization", authToken)
-		req.Header.Set("Content-Type", "application/json")
+	// Paso 8: Utilizar un WaitGroup para esperar a que todas las goroutines terminen
+	var wg sync.WaitGroup
 
-		// Realizar la solicitud HTTP POST a la API
-		cliente := &http.Client{}
-		respuesta, err := cliente.Do(req)
-		if err != nil {
-			log.Printf("Error al enviar la solicitud HTTP: %v\n", err)
-			// Guardar el error en Redis
-			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
-			continue
-		}
-		defer respuesta.Body.Close()
+	log.Println("Iniciando el envío de las estructuras a la API...")
 
-		// Leer el cuerpo de la respuesta
-		cuerpoRespuesta, err := ioutil.ReadAll(respuesta.Body)
-		if err != nil {
-			log.Printf("Error al leer la respuesta de la API: %v\n", err)
-			// Guardar el error en Redis
-			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
-			continue
-		}
-
-		// Obtener el estado de la respuesta
-		estadoRespuesta := fmt.Sprintf("Códe: %d %s, Menssage: %s", respuesta.StatusCode, respuesta.Status, string(cuerpoRespuesta))
-
-		// Registrar el estado del IDDTE en Redis
-		guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, estadoRespuesta)
-
-		// Crear el archivo de registro
-		logFileName := "IDDTElog.txt"
-		logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
-			return
-		}
-		defer logFile.Close()
-
-		dt := time.Now()
-
-		// Escribir en el archivo de registro
-		logEntry := fmt.Sprintf("%s - %s - Código de estado de la respuesta: %d %s\n", dt.Format(time.Stamp), "IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
-		logEntry += fmt.Sprintf("%s - %s - Mensaje de la respuesta: %s\n", dt.Format(time.Stamp), "IDDTE-"+id, string(cuerpoRespuesta))
-		logEntry += ("\n<------------------------------------------------------------->\n")
-		if _, err := logFile.WriteString(logEntry); err != nil {
-			log.Printf("Error al escribir en el archivo de registro: %v\n", err)
-			continue
-		}
+	//Crear el archivo de registro
+	logFileName := "IDDTElog.txt"
+	logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Error al abrir o crear el archivo de registro %s: %v\n", logFileName, err)
+		return
 	}
-	// fmt.Println("Documentos json enviados con exito")
+	defer logFile.Close()
+
+	// Paso 9: Enviar cada estructura a la API y registrar su estado en Redis
+	for id, estructura := range estructuras {
+		wg.Add(1) // Incrementar el contador del WaitGroup
+
+		// Añadir una marca al canal
+		semaforo <- struct{}{}
+
+		go func(id string, estructura interface{}) {
+			defer func() {
+				// Eliminar una marca del canal al terminar
+				<-semaforo
+
+				// Decrementar el contador del WaitGroup
+				wg.Done()
+			}()
+
+			log.Printf("Iniciando envío de la estructura %s\n", id)
+
+			// Paso 10: Convertir la estructura a JSON
+			contenidoJSON, err := json.Marshal(estructura)
+			if err != nil {
+				log.Printf("Error al convertir la estructura a JSON: %v\n", err)
+				return
+			}
+
+			// Paso 11: Crear la solicitud HTTP
+			req, err := http.NewRequest("POST", api, bytes.NewBuffer(contenidoJSON))
+			if err != nil {
+				log.Printf("Error al crear la solicitud HTTP: %v\n", err)
+				// Guardar el error en Redis
+				guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
+				return
+			}
+
+			// Paso 12: Agregar el encabezado de autorización
+			req.Header.Set("Authorization", authToken)
+			req.Header.Set("Content-Type", "application/json")
+
+			// Paso 13: Realizar la solicitud HTTP POST a la API de forma asíncrona
+			originalErrorMessage := "" // Variable para almacenar el mensaje original
+			respuesta, statusCode, originalErrorMessage, err := SendWithRetries(req, cliente)
+			if err != nil {
+
+				// Variable para rastrear si se realizó un reintento
+				var retried bool
+				statusRespuesta := fmt.Sprintf("Código: %d , Mensaje: %s", statusCode, string(originalErrorMessage))
+
+				// Verificar si se realizó un reintento
+				if err == ErrNoRetries {
+					retried = false
+				} else {
+					retried = true
+				}
+
+				// Imprimir el log de error solo si se realizó un reintento
+				if retried {
+					log.Printf("Error al enviar la estructura %s: %v\n", id, err)
+				}
+				// Guardar el error original en Redis si todos los reintentos fallan
+				if originalErrorMessage != "" {
+					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, statusRespuesta)
+				} else {
+					guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
+				}
+				// Escribir el error en el archivo de registro
+				logEntry := fmt.Sprintf("%s - %s - Error al enviar la estructura: %v\n", time.Now().Format(time.Stamp), "IDDTE-"+id, statusRespuesta)
+				logEntry += ("\n<------------------------------------------------------------->\n")
+				if _, err := logFile.WriteString(logEntry); err != nil {
+					log.Printf("Error al escribir en el archivo de registro: %v\n", err)
+				}
+				return
+			}
+			defer respuesta.Body.Close()
+
+			// Paso 14: Leer el cuerpo de la respuesta
+			cuerpoRespuesta, err := ioutil.ReadAll(respuesta.Body)
+			if err != nil {
+				log.Printf("Error al leer la respuesta de la API: %v\n", err)
+				// Guardar el error en Redis
+				guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, err.Error())
+				return
+			}
+
+			// Paso 15: Obtener el estado de la respuesta
+			estadoRespuesta := fmt.Sprintf("Código: %d, Mensaje: %s", respuesta.StatusCode, string(cuerpoRespuesta))
+
+			// Paso 16: Registrar el estado del IDDTE en Redis
+			guardarEstadoEnRedis(rdb, nombreLote, "IDDTE-"+id, estadoRespuesta)
+
+			dt := time.Now()
+
+			// Escribir en el archivo de registro
+			logEntry := fmt.Sprintf("%s - %s - Código de estado de la respuesta: %d %s\n", dt.Format(time.Stamp), "IDDTE-"+id, respuesta.StatusCode, respuesta.Status)
+			logEntry += fmt.Sprintf("%s - %s - Mensaje de la respuesta: %s\n", dt.Format(time.Stamp), "IDDTE-"+id, string(cuerpoRespuesta))
+			logEntry += ("\n<------------------------------------------------------------->\n")
+			if _, err := logFile.WriteString(logEntry); err != nil {
+				log.Printf("Error al escribir en el archivo de registro: %v\n", err)
+				return
+			}
+		}(id, estructura)
+	}
+
+	// Paso 18: Esperar a que todas las goroutines terminen
+	wg.Wait()
+
+	log.Println("Envío de las estructuras completado.")
+
+	// fmt.Println("Documentos JSON enviados con éxito")
 }
 
 func guardarEstadoEnRedis(rdb *redis.Client, nombreLote string, id string, estado string) {
@@ -126,8 +202,8 @@ func guardarEstadoEnRedis(rdb *redis.Client, nombreLote string, id string, estad
 		log.Printf("Error al guardar el estado en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
 	} else {
 		// Establecer un tiempo de expiración para la clave específica dentro del hash
-		// expiration := 3 * 30 * 24 * time.Hour // 3 meses en horas,en vez de time.Minute
-		err = rdb.Expire(context.Background(), nombreLote, 24*time.Hour).Err()
+		expiration := 3 * 30 * 24 * time.Hour // 3 meses en horas,en vez de time.Minute
+		err = rdb.Expire(context.Background(), nombreLote, expiration).Err()
 		if err != nil {
 			log.Printf("Error al establecer el tiempo de expiración en Redis para IDDTE %s del lote %s: %v\n", id, nombreLote, err)
 		}
