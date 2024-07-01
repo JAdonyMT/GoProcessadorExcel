@@ -12,12 +12,10 @@ import csv
 id_emp = sys.argv[3]
 
 client_maps = {}
-if id_emp == "26":
+if id_emp == "1022":
     from maps.maps_px import *
     client_maps = locals()
-elif id_emp == "2":
-    from maps.maps_ra import *
-    client_maps = locals()
+
 
 def convert_nan_to_none(value):
     if isinstance(value, (float, np.float64)):
