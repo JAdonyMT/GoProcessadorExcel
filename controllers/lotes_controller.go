@@ -37,9 +37,10 @@ func HandleStatusConsulta(c *gin.Context, rdb *redis.Client) {
 
 	patronCancel := regexp.MustCompile(`\.xlsx:cancel$`)
 	patron := regexp.MustCompile(`\.xlsx:\d+$`)
+	all := regexp.MustCompile(`\.xlsx`)
 
 	for _, estado := range estados {
-		if patron.MatchString(estado) || patronCancel.MatchString(estado) {
+		if patron.MatchString(estado) || patronCancel.MatchString(estado) || all.MatchString(estado) {
 			// Obtener el estado del archivo y agregarlo al mapa
 			status, _ := rdb.Get(context.Background(), estado).Result()
 			lote := strings.TrimPrefix(estado, empPrefix)
