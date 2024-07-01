@@ -27,7 +27,7 @@ func main() {
 		Addr:     redisAddr,
 		Username: redisUsr,
 		Password: redisPsw,
-		DB:       0,
+		DB:       1,
 	})
 
 	// Verificar la conexión a Redis
@@ -38,5 +38,5 @@ func main() {
 	log.Printf("Conexión a Redis establecida: %s", pong)
 
 	r := routes.SetupRouter(rdb)
-	r.Run(":8080")
+	r.Run(":8082")
 }
